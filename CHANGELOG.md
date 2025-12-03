@@ -1,3 +1,7 @@
+## v0.1.2
+
+- Fixes an issue where the `init` command included the `.git` extension in generated resource names. The git remote parsing logic was updated to correctly strip the extension.
+
 ## v0.1.1
 
 - Fixes issue where CLI could not be executed globally. A missing shebang (`#!/usr/bin/env node`) was added to the build output, resolving permission and command-not-found errors.
