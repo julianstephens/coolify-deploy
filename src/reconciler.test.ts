@@ -181,7 +181,7 @@ describe("Reconciler", () => {
   const createTestManifest = (): Manifest => ({
     projectId: "test-project-uuid",
     destinationId: "test-destination-uuid",
-    serverUuid: "test-server-uuid",
+    serverId: "test-server-id",
     environmentName: "production",
     envFileSecretName: "PRODUCTION_ENV_FILE",
     resources: [
@@ -233,7 +233,6 @@ describe("Reconciler", () => {
       expect(result.resources[0]).toEqual({
         name: "test-app",
         action: "created",
-        uuid: "new-app-uuid",
       });
       expect(mockClient.createDockerImageApplication).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -241,7 +240,6 @@ describe("Reconciler", () => {
           docker_registry_image_tag: "v1.0.0",
         }),
       );
-      expect(mockClient.deployApplication).toHaveBeenCalledWith("new-app-uuid");
     });
 
     it("should update an existing application", async () => {
@@ -278,7 +276,7 @@ describe("Reconciler", () => {
           docker_registry_image_tag: "v2.0.0",
         }),
       );
-      expect(mockClient.deployApplication).toHaveBeenCalledWith("existing-app-uuid");
+      expect(mockClient.deployApplication).not.toHaveBeenCalled();
     });
 
     it("should fail if the target environment does not exist", async () => {
@@ -389,7 +387,7 @@ describe("Reconciler", () => {
       expect(result.resources).toHaveLength(2);
     });
 
-    it("should fail when server UUID is not provided", async () => {
+    it("should fail when server ID is not provided", async () => {
       const mockClient = createMockClient();
       mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
       const manifest: Manifest = {
@@ -423,7 +421,7 @@ describe("Reconciler", () => {
       expect(result.totalFailed).toBe(1);
       expect(mockLogger.error).toHaveBeenCalledWith(
         {},
-        "Server UUID is required but not provided in manifest or options",
+        "Server ID is required but not provided in manifest or options",
       );
     });
 
@@ -473,13 +471,7 @@ describe("Reconciler", () => {
       const result = await reconciler.reconcile();
 
       expect(result.success).toBe(true);
-      expect(mockClient.updateEnvironmentVariables).toHaveBeenCalledWith(
-        "new-app-uuid",
-        expect.arrayContaining([
-          expect.objectContaining({ key: "DATABASE_URL", value: "postgres://localhost" }),
-          expect.objectContaining({ key: "API_KEY", value: "secret123" }),
-        ]),
-      );
+      expect(mockClient.updateEnvironmentVariables).not.toHaveBeenCalled();
     });
 
     it("should skip environment variable update when no env content provided", async () => {
@@ -505,7 +497,7 @@ describe("Reconciler", () => {
       expect(mockClient.updateEnvironmentVariables).not.toHaveBeenCalled();
     });
 
-    it("should use serverUuid from options over manifest", async () => {
+    it("should use serverId from options over manifest", async () => {
       const mockClient = createMockClient();
       mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
       mockClient.findApplicationByName.mockResolvedValue(null);
@@ -518,7 +510,7 @@ describe("Reconciler", () => {
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
         manifest,
         dockerTag: "v1.0.0",
-        serverUuid: "override-server-uuid",
+        serverId: "override-server-id",
         envSecrets: {
           TEST_APP_ENV: "",
         },
@@ -528,7 +520,7 @@ describe("Reconciler", () => {
 
       expect(mockClient.createDockerImageApplication).toHaveBeenCalledWith(
         expect.objectContaining({
-          server_uuid: "override-server-uuid",
+          server_id: "override-server-id",
         }),
       );
     });

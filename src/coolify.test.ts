@@ -207,7 +207,7 @@ describe("CoolifyClient", () => {
 
       const result = await client.createDockerImageApplication({
         project_uuid: "project-uuid",
-        server_uuid: "server-uuid",
+        server_id: "server-uuid",
         environment_name: "production",
         docker_registry_image_name: "ghcr.io/test/app",
         name: "Test App",
@@ -248,35 +248,36 @@ describe("CoolifyClient", () => {
     it("should build create options from resource", () => {
       const resource: Resource = {
         name: "my-app",
-        description: "My Application",
-        dockerImageName: "ghcr.io/owner/repo/app",
-        domains: "app.example.com",
+        description: "A sample app",
+        dockerImageName: "image-name",
+        envSecretName: "env-secret",
+        domains: "test.com",
         portsExposes: "3000",
         healthCheck: {
           path: "/health",
           port: "3000",
         },
-      } as Resource;
+      };
 
       const options = CoolifyClient.buildCreateOptions(
         resource,
         "project-uuid",
         "server-uuid",
         "production",
-        "destination-uuid",
+        "dest-uuid",
         "v1.0.0",
       );
 
       expect(options).toEqual({
         project_uuid: "project-uuid",
-        server_uuid: "server-uuid",
+        server_id: "server-uuid",
         environment_name: "production",
-        destination_uuid: "destination-uuid",
-        docker_registry_image_name: "ghcr.io/owner/repo/app",
+        destination_uuid: "dest-uuid",
+        docker_registry_image_name: "image-name",
         docker_registry_image_tag: "v1.0.0",
         name: "my-app",
-        description: "My Application",
-        fqdn: "app.example.com",
+        description: "A sample app",
+        fqdn: "test.com",
         ports_exposes: "3000",
         instant_deploy: false,
         health_check_enabled: true,

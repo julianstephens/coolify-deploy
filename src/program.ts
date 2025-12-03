@@ -19,7 +19,7 @@ export async function createProgram() {
     .description("A tool to deploy and manage resources in Coolify using a manifest file.")
     .version(pkg.version)
     .option("-m, --manifest <path>", "Path to coolify.manifest.json file", process.env.MANIFEST_PATH)
-    .option("-s, --server-uuid <uuid>", "Coolify server UUID (overrides manifest)")
+    .option("-s, --server-id <uuid>", "Coolify server UUID (overrides manifest)")
     .option("-d, --dry-run", "Run without making changes", process.env.DRY_RUN === "true");
 
   return program;
@@ -94,7 +94,7 @@ export function createApplyCommand() {
           manifest,
           dockerTag,
           envSecrets,
-          serverUuid: globalOptions.serverUuid,
+          serverId: globalOptions.serverId,
         });
 
         const result = await reconciler.reconcile();
@@ -310,6 +310,8 @@ export function createInitCommand() {
       // Initialize Coolify client for introspection if project ID is provided
       let coolifyClient: CoolifyClient | null = null;
       const existingApps: Record<string, unknown> = {};
+      let serverId: string | undefined = undefined;
+      let destinationUuid: string | undefined = undefined;
 
       if (options.projectId) {
         const env = parseEnv();
@@ -326,9 +328,26 @@ export function createInitCommand() {
             existingApps[(app as unknown as Record<string, unknown>).name as string] = app;
           }
           console.log(`[INFO] Found ${Object.keys(existingApps).length} existing applications.`);
-        } catch {
+
+          // If we found apps, try to get the destination from the first one
+          if (allApps.length > 0 && allApps[0].destination) {
+            destinationUuid = allApps[0].destination.uuid;
+            console.log(`[INFO] Using destination from first application: ${destinationUuid}`);
+          }
+
+          // Introspect servers
+          const servers = await coolifyClient.listServers();
+          if (servers.length > 0) {
+            // For simplicity, we'll take the first server
+            const firstServer = servers[0];
+            serverId = firstServer.uuid;
+            console.log(`[INFO] Using server: ${firstServer.name} (${firstServer.uuid})`);
+          } else {
+            console.warn("[WARN] No servers found in your Coolify instance.");
+          }
+        } catch (e) {
           console.warn(
-            "[WARN] Failed to introspect Coolify. Will generate manifest without existing resource details.",
+            `[WARN] Failed to introspect Coolify: ${e instanceof Error ? e.message : String(e)}. Will generate manifest without existing resource details.`,
           );
         }
       }
@@ -344,67 +363,45 @@ export function createInitCommand() {
       }> = [];
 
       for (const workspace of allWorkspaces) {
-        const { path: absolutePath, name: pkgName } = workspace;
-        const dockerfilePath = join(absolutePath, "Dockerfile");
+        const dockerfilePath = join(workspace.path, "Dockerfile");
+        if (await pathExists(dockerfilePath)) {
+          const port = await getExposedPort(dockerfilePath);
 
-        if (!(await pathExists(dockerfilePath))) {
-          continue;
-        }
+          // Construct full service name by combining repo name and workspace name
+          const fullServiceName = `${repoInfo.name}-${workspace.name}`;
 
-        console.log(`[INFO] Processing "${pkgName}"...`);
-        const packageJsonPath = join(absolutePath, "package.json");
+          const resource: Record<string, unknown> = {
+            name: fullServiceName,
+            description: `The ${fullServiceName} service.`,
+            dockerImageName: `ghcr.io/${repoInfo.owner}/${fullServiceName}`,
+            envSecretName: `COOLIFY_ENV_${workspace.name.toUpperCase().replace(/-/g, "_")}`,
+          };
 
-        let pkg: { description?: string };
-        try {
-          const pkgContent = await readFile(packageJsonPath, "utf-8");
-          pkg = JSON.parse(pkgContent);
-        } catch {
-          console.error(`[ERROR] Could not read package.json for "${pkgName}". Skipping.`);
-          continue;
-        }
+          // Try to get domains from existing application if available
+          const existingApp = existingApps[fullServiceName] as unknown as Record<string, unknown>;
+          if (existingApp && existingApp.fqdn) {
+            resource.domains = existingApp.fqdn as string;
+          }
 
-        const exposedPort = await getExposedPort(dockerfilePath);
-        if (!exposedPort) {
-          console.warn(`[WARN] No EXPOSE instruction found in Dockerfile for "${pkgName}". Defaulting to 8080.`);
-        }
+          if (port) {
+            resource.portsExposes = port;
+            resource.healthCheck = {
+              path: "/",
+              port: port,
+            };
+          }
 
-        const resourceNameSuffix = pkgName.split("/")[1] || pkgName;
-        const resourceName = `${repoInfo.name}-${resourceNameSuffix}`;
-
-        // Check if resource already exists in Coolify
-        const existingApp = existingApps[resourceName];
-        if (existingApp) {
-          console.log(`[INFO] Found existing application "${resourceName}" in Coolify.`);
-          allResources.push({
-            name: resourceName,
-            description:
-              ((existingApp as Record<string, unknown>).description as string | undefined) ||
-              pkg.description ||
-              `The ${resourceNameSuffix} service.`,
-            dockerImageName:
-              ((existingApp as Record<string, unknown>).docker_registry_image_name as string) ||
-              `ghcr.io/${repoInfo.owner}/${repoInfo.name}-${resourceNameSuffix}`,
-            envSecretName: `COOLIFY_ENV_${resourceNameSuffix.toUpperCase().replace(/-/g, "_")}`,
-            domains: ((existingApp as Record<string, unknown>).fqdn as string) || "app.example.com",
-            portsExposes: ((existingApp as Record<string, unknown>).ports_exposes as string) || exposedPort || "8080",
-            healthCheck: {
-              path: ((existingApp as Record<string, unknown>).health_check_path as string) || "/health",
-              port: ((existingApp as Record<string, unknown>).health_check_port as string) || exposedPort || "8080",
+          allResources.push(
+            resource as {
+              name: string;
+              description: string;
+              dockerImageName: string;
+              envSecretName: string;
+              domains: string;
+              portsExposes: string;
+              healthCheck: { path: string; port: string };
             },
-          });
-        } else {
-          allResources.push({
-            name: resourceName,
-            description: pkg.description || `The ${resourceNameSuffix} service.`,
-            dockerImageName: `ghcr.io/${repoInfo.owner}/${repoInfo.name}-${resourceNameSuffix}`,
-            envSecretName: `COOLIFY_ENV_${resourceNameSuffix.toUpperCase().replace(/-/g, "_")}`,
-            domains: "app.example.com",
-            portsExposes: exposedPort || "8080",
-            healthCheck: {
-              path: "/health",
-              port: exposedPort || "8080",
-            },
-          });
+          );
         }
       }
 
@@ -413,22 +410,26 @@ export function createInitCommand() {
         process.exit(0);
       }
 
-      const rootManifest = {
-        projectId: options.projectId || "clv4321dc0000g21b5c1a1a1a",
-        destinationId: "clt1234ab0000g21b5c1a1b1b",
-        serverUuid: "clx9876ef0000g21b5c1a1c1c",
+      const manifest = {
+        projectId: options.projectId || "your-coolify-project-id",
+        destinationId: destinationUuid || "your-coolify-destination-id",
+        serverId: serverId || "your-coolify-server-id",
         environmentName: options.environment,
         resources: allResources,
       };
 
-      const manifestPath = resolve(process.cwd(), options.output);
-      await writeFile(manifestPath, JSON.stringify(rootManifest, null, 2));
-
-      console.log("[INFO] --------------------------------------------------");
-      console.log(`[SUCCESS] Scan complete. Generated root manifest with ${allResources.length} resource(s).`);
-      console.log(`[SUCCESS] File created at: ${manifestPath}`);
-      if (!options.projectId) {
-        console.warn("[WARN] ACTION REQUIRED: Open coolify.manifest.json and replace placeholder values.");
+      try {
+        await writeFile(options.output, JSON.stringify(manifest, null, 2));
+        console.log("[INFO] --------------------------------------------------");
+        console.log(`[SUCCESS] Scan complete. Generated root manifest with ${allResources.length} resource(s).`);
+        console.log(`[SUCCESS] File created at: ${options.output}`);
+        if (!options.projectId) {
+          console.warn("[WARN] ACTION REQUIRED: Open coolify.manifest.json and replace placeholder values.");
+        }
+      } catch (e) {
+        console.error(
+          `[ERROR] Failed to write manifest file: ${e instanceof Error ? e.message : String(e)}. Manifest not saved.`,
+        );
       }
 
       process.exit(0);

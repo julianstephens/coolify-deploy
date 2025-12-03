@@ -1,3 +1,11 @@
+## v0.1.5
+
+- Renames `serverUuid` to `serverId` in manifest for consistent resource identification.
+- Adds server and destination introspection to the `init` command
+- Fixes issue where CLI crashes on null list return from the API
+- Fixes issue where reconciliation flow used improper app creation/update methods
+- Aligns test suite with codebase for proper coverage
+
 ## v0.1.4
 
 - Fixes reconciliation logic to correctly handle resources that lack optional networking properties

@@ -137,7 +137,7 @@ The `coolify.manifest.json` file declares the desired state of your resources.
 {
   "projectId": "your-coolify-project-uuid",
   "destinationId": "your-coolify-destination-uuid",
-  "serverUuid": "your-coolify-server-uuid",
+  "serverId": "your-coolify-server-id",
   "environmentName": "production",
   "resources": [
     {

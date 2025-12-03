@@ -72,7 +72,7 @@ export const manifestSchema = z.object({
   /** Name of the GitHub secret containing the .env file */
   envFileSecretName: z.string().min(1).default("PRODUCTION_ENV_FILE"),
   /** Server UUID for Coolify */
-  serverUuid: z.string().min(1).optional().describe("Coolify Server UUID"),
+  serverId: z.string().min(1).optional().describe("Coolify Server ID"),
   /** Array of resource definitions */
   resources: z.array(resourceSchema).min(1, "At least one resource must be defined"),
 });

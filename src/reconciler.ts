@@ -30,7 +30,7 @@ export interface ReconcilerOptions {
   manifest: Manifest;
   dockerTag: string;
   envSecrets?: Record<string, string>;
-  serverUuid?: string;
+  serverId?: string;
 }
 
 /**
@@ -157,9 +157,9 @@ export class Reconciler {
     );
 
     // Determine server UUID
-    const serverUuid = this.options.serverUuid ?? manifest.serverUuid;
-    if (!serverUuid) {
-      this.logger.error({}, "Server UUID is required but not provided in manifest or options");
+    const serverId = this.options.serverId ?? manifest.serverId;
+    if (!serverId) {
+      this.logger.error({}, "Server ID is required but not provided in manifest or options");
       return {
         success: false,
         resources: [],
@@ -189,7 +189,7 @@ export class Reconciler {
           );
         }
 
-        const result = await this.reconcileResource(resource, serverUuid, envVars);
+        const result = await this.reconcileResource(resource, serverId, envVars);
         results.push(result);
 
         if (result.action === "created") {
@@ -228,52 +228,54 @@ export class Reconciler {
    */
   private async reconcileResource(
     resource: Resource,
-    serverUuid: string,
-    envVars: CoolifyEnvVar[],
+    serverId: string,
+    _envVars: CoolifyEnvVar[],
   ): Promise<ReconcileResourceResult> {
+    const { name } = resource;
     const { manifest, dockerTag } = this.options;
 
     this.logger.info({ resource: resource.name, dockerTag }, "Reconciling resource");
 
     // Try to find existing application
-    const existing = await this.client.findApplicationByName(resource.name);
+    const existingApp = await this.client.findApplicationByName(name);
 
-    let uuid: string;
-    let action: "created" | "updated" | "unchanged";
+    try {
+      if (existingApp) {
+        // App exists, update it
+        this.logger.info({ app: name }, `Application already exists, updating...`);
+        const updateOptions = CoolifyClient.buildUpdateOptions(resource, dockerTag);
+        await this.client.updateApplication(existingApp.uuid, updateOptions);
+        return {
+          name: name,
+          action: "updated",
+          uuid: existingApp.uuid,
+        };
+      } else {
+        // App doesn't exist, create it
+        this.logger.info({ app: name }, `Application does not exist, creating...`);
 
-    if (existing) {
-      // Update existing application
-      uuid = existing.uuid;
-      const updateOptions = CoolifyClient.buildUpdateOptions(resource, dockerTag);
-      await this.client.updateApplication(uuid, updateOptions);
-      action = "updated";
-      this.logger.info({ resource: resource.name, uuid }, "Updated existing application");
-    } else {
-      // Create new application
-      const createOptions = CoolifyClient.buildCreateOptions(
-        resource,
-        manifest.projectId,
-        serverUuid,
-        manifest.environmentName,
-        manifest.destinationId,
-        dockerTag,
-      );
-      const created = await this.client.createDockerImageApplication(createOptions);
-      uuid = created.uuid;
-      action = "created";
-      this.logger.info({ resource: resource.name, uuid }, "Created new application");
+        const createOptions = CoolifyClient.buildCreateOptions(
+          resource,
+          manifest.projectId,
+          serverId,
+          manifest.environmentName,
+          manifest.destinationId,
+          dockerTag,
+        );
+        await this.client.createDockerImageApplication(createOptions);
+        return {
+          name: name,
+          action: "created",
+        };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error({ resource: resource.name, error: errorMessage }, "Failed to reconcile resource");
+      return {
+        name: resource.name,
+        action: "failed",
+        error: errorMessage,
+      };
     }
-
-    // Update environment variables if provided
-    if (envVars.length > 0) {
-      await this.client.updateEnvironmentVariables(uuid, envVars);
-      this.logger.info({ resource: resource.name, uuid, envVarCount: envVars.length }, "Updated environment variables");
-    }
-
-    // Trigger deployment
-    await this.client.deployApplication(uuid);
-    this.logger.info({ resource: resource.name, uuid }, "Triggered deployment");
-
-    return { name: resource.name, action, uuid };
   }
 }

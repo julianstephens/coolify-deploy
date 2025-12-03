@@ -17,6 +17,9 @@ export interface CoolifyApplication {
   health_check_port: number | null;
   repository_project_id: number | null;
   environment_id: number | null;
+  destination?: {
+    uuid: string;
+  };
 }
 
 /**
@@ -53,7 +56,7 @@ export interface CoolifyApiError {
  */
 export interface CreateDockerImageAppOptions {
   project_uuid: string;
-  server_uuid: string;
+  server_id: string;
   environment_name: string;
   docker_registry_image_name: string;
   docker_registry_image_tag?: string;
@@ -99,6 +102,11 @@ export interface UpdateAppOptions {
   health_check_timeout?: number;
   health_check_retries?: number;
   health_check_start_period?: number;
+}
+
+export interface CoolifyServer {
+  uuid: string;
+  name: string;
 }
 
 /**
@@ -172,7 +180,20 @@ export class CoolifyClient {
       return [];
     }
 
-    return this.request<CoolifyApplication[]>("GET", "/api/v1/applications");
+    const result = await this.request<CoolifyApplication[] | null>("GET", "/api/v1/applications");
+    return result ?? [];
+  }
+
+  /**
+   * Lists all servers.
+   */
+  async listServers(): Promise<CoolifyServer[]> {
+    if (this.dryRun) {
+      this.logger.debug("Listing servers in dry run mode");
+      return [];
+    }
+    const result = await this.request<CoolifyServer[] | null>("GET", "/api/v1/servers");
+    return result ?? [];
   }
 
   /**
@@ -211,12 +232,12 @@ export class CoolifyClient {
    * Note: Searches across all applications returned by the API.
    */
   async findApplicationByName(name: string): Promise<CoolifyApplication | null> {
-    const apps = await this.listApplications();
-    const found = apps.find((app) => app.name === name);
-    if (found) {
-      this.logger.debug({ name, uuid: found.uuid }, "Found existing application");
+    if (this.dryRun) {
+      this.logger.debug({ name }, "[DRY RUN] Would find application by name");
+      return null;
     }
-    return found ?? null;
+    const applications = await this.listApplications();
+    return applications?.find((app) => app.name === name) ?? null;
   }
 
   /**
@@ -291,14 +312,14 @@ export class CoolifyClient {
   static buildCreateOptions(
     resource: Resource,
     projectId: string,
-    serverUuid: string,
+    serverId: string,
     environmentName: string,
     destinationUuid: string,
     dockerTag: string,
   ): CreateDockerImageAppOptions {
     const options: CreateDockerImageAppOptions = {
       project_uuid: projectId,
-      server_uuid: serverUuid,
+      server_id: serverId,
       environment_name: environmentName,
       destination_uuid: destinationUuid,
       docker_registry_image_name: resource.dockerImageName,

@@ -7,6 +7,12 @@ export default [
     ignores: ["dist/"],
   },
   ...tseslint.configs.recommended,
+  {
+    files: ["**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+    },
+  },
   prettierConfig,
   {
     languageOptions: {
