@@ -26,13 +26,20 @@
     "iac",
     "infrastructure-as-code",
     "deployment",
-    "reconciler",
     "docker",
     "devops"
   ],
   "author": "Julian Stephens",
   "license": "MIT",
   "packageManager": "pnpm@10.18.3",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/julianstephens/coolify-deploy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/julianstephens/coolify-deploy/issues"
+  },
+  "homepage": "https://github.com/julianstephens/coolify-deploy#readme",
   "dependencies": {
     "@commander-js/extra-typings": "^14.0.0",
     "commander": "^14.0.2",

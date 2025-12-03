@@ -1,37 +1,56 @@
-# Coolify Deploy
+# Coolify Deploy 🚀
 
-A lightweight Infrastructure as Code (IaC) tool for managing and deploying Docker applications to Coolify. It allows you to define your applications in a JSON manifest and uses a reconciler to handle the creation, updates, and deployments. Key features include the ability to generate a manifest by scanning your repository for Dockerfiles, support for prebuilt Docker images, management of environment variables, and structured logging for all operations. The tool also offers a dry-run mode to test deployments without making live changes and is idempotent, ensuring that repeated runs will not cause unintended side effects.
+A lightweight Infrastructure as Code (IaC) tool for managing and deploying Docker applications to [Coolify](https://coolify.io/).
 
-## Features
+Define your applications in a `coolify.manifest.json` file and let `cdeploy` handle the rest. It scans your repository for Dockerfiles, generates a manifest, and reconciles your applications, ensuring they are always in the desired state.
 
-- **Declarative Deployment**: Define your applications in a JSON manifest and let the reconciler handle creation, updates, and deployments.
-- **Manifest Generation**: Scan your repository for `Dockerfile`s and generate a manifest with optional introspection of your Coolify environment.
-- **Docker Image Support**: Works with prebuilt Docker images from container registries like GHCR.
-- **Environment Variable Management**: Parse `.env` formatted secrets and apply them to applications.
-- **Structured Logging**: All operations are logged in JSON format.
-- **Dry Run Mode**: Test your deployments without making actual changes.
-- **Idempotent**: Safe to run multiple times; creates new applications or updates existing ones as needed.
+## 📋 Table of Contents
 
-## Installation
+- [✨ Features](#-features)
+- [📦 Installation](#-installation)
+- [🚀 Usage](#-usage)
+  - [🌍 Global Options](#-global-options)
+  - [1. `init` - Generate a Manifest 📝](#1-init---generate-a-manifest-)
+  - [2. `apply` - Apply a Manifest 🚢](#2-apply---apply-a-manifest-)
+  - [3. `state` - Inspect Resource State 👀](#3-state---inspect-resource-state-)
+- [📄 Manifest Format](#-manifest-format)
+- [🔑 Environment Variables](#-environment-variables)
+- [📚 Library Usage](#-library-usage)
+- [🤖 GitHub Actions Integration](#-github-actions-integration)
+  - [Required GitHub Secrets](#required-github-secrets)
+- [🛠️ Development](#️-development)
+- [📄 License](#-license)
+
+## ✨ Features
+
+-   **Declarative Deployment**: Define applications in a JSON manifest and let the reconciler handle creation, updates, and deployments.
+-   **Manifest Generation**: Scan your repository for `Dockerfile`s and generate a manifest, with optional introspection of your Coolify environment.
+-   **Docker Image Support**: Works with prebuilt Docker images from container registries like GHCR.
+-   **Environment Variable Management**: Parse `.env` formatted secrets and apply them to applications.
+-   **Structured Logging**: All operations are logged in a structured JSON format for clear, machine-readable output.
+-   **Dry Run Mode**: Test your deployments without making any actual changes to your infrastructure.
+-   **Idempotent**: Safe to run multiple times; it creates new applications or updates existing ones only as needed.
+
+## 📦 Installation
 
 ```bash
 pnpm add -g coolify-deploy
 ```
 
-## Usage
+## 🚀 Usage
 
 This tool provides three main commands: `init` to generate a manifest, `apply` to deploy it, and `state` to inspect it.
 
-### Global Options
+### 🌍 Global Options
 
-These options can be used with any command.
+These options can be used with any command:
 
 ```
 --manifest <path>  Path to coolify.manifest.json file (default: ./coolify.manifest.json)
 --dry-run          Run without making changes
 ```
 
-### 1. `init` - Generate a Manifest
+### 1. `init` - Generate a Manifest 📝
 
 The `init` command scans your repository for `Dockerfile`s and generates a `coolify.manifest.json` file. It can optionally introspect your Coolify environment to auto-fill configuration details from existing applications.
 
@@ -48,7 +67,7 @@ Options:
 
 #### `init` Examples
 
-**Option 1: Generate Manifest with Defaults**
+**Generate Manifest with Defaults**
 
 ```bash
 # Run from your repository root
@@ -57,7 +76,7 @@ cdeploy init
 
 This creates a `coolify.manifest.json` with placeholder values.
 
-**Option 2: Generate Manifest with Coolify Introspection**
+**Generate Manifest with Coolify Introspection**
 
 ```bash
 # Set environment variables
@@ -72,7 +91,7 @@ cdeploy init \
 
 The manifest will be auto-populated with real values from matching applications in your Coolify project.
 
-### 2. `apply` - Apply a Manifest
+### 2. `apply` - Apply a Manifest 🚢
 
 The `apply` command reads a manifest and reconciles the state of your applications in Coolify. It will create, update, and deploy applications as needed.
 
@@ -96,9 +115,9 @@ cdeploy --manifest ./coolify.manifest.json apply --tag v1.0.0
 cdeploy --manifest ./coolify.manifest.json apply --tag latest --dry-run
 ```
 
-### 3. `state` - Inspect Resource State
+### 3. `state` - Inspect Resource State 👀
 
-After applying a manifest, you can use the `state` command to fetch and display the current configuration of your resources from Coolify.
+After applying a manifest, use the `state` command to fetch and display the current configuration of your resources from Coolify.
 
 #### `state` Examples
 
@@ -110,7 +129,7 @@ cdeploy state
 cdeploy --manifest ./path/to/your/manifest.json state
 ```
 
-## Manifest Format
+## 📄 Manifest Format
 
 The `coolify.manifest.json` file declares the desired state of your resources.
 
@@ -137,21 +156,21 @@ The `coolify.manifest.json` file declares the desired state of your resources.
 }
 ```
 
-## Environment Variables
+## 🔑 Environment Variables
 
 | Variable               | Required | Description                                                              |
 | ---------------------- | -------- | ------------------------------------------------------------------------ |
 | `COOLIFY_ENDPOINT_URL` | Yes      | Coolify server base URL                                                  |
 | `COOLIFY_TOKEN`        | Yes      | Coolify API token                                                        |
-| `MANIFEST_PATH`        | No       | Path to manifest file (can use CLI arg)                                  |
-| `DOCKER_IMAGE_TAG`     | No       | Docker image tag to deploy (can use CLI arg)                             |
+| `MANIFEST_PATH`        | No       | Path to manifest file (overrides `--manifest` CLI arg)                   |
+| `DOCKER_IMAGE_TAG`     | No       | Docker image tag to deploy (overrides `--tag` CLI arg)                     |
 | `COOLIFY_ENV_*`        | No       | `.env` formatted content for an application (e.g., `COOLIFY_ENV_MY_APP`) |
-| `LOG_LEVEL`            | No       | Log level: trace, debug, info, warn, error, fatal (default: info)        |
-| `DRY_RUN`              | No       | Set to "true" for dry run mode                                           |
+| `LOG_LEVEL`            | No       | Log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal` (default: `info`) |
+| `DRY_RUN`              | No       | Set to `"true"` for dry run mode (overrides `--dry-run` CLI arg)         |
 
-## Library Usage
+## 📚 Library Usage
 
-You can also use this package as a library:
+You can also use this package as a library in your own TypeScript/JavaScript projects:
 
 ```typescript
 import { CoolifyClient, Reconciler, parseManifest } from "coolify-deploy";
@@ -176,7 +195,9 @@ const result = await reconciler.reconcile();
 console.log(result.success, result.totalCreated, result.totalUpdated);
 ```
 
-## GitHub Actions Integration
+## 🤖 GitHub Actions Integration
+
+Integrate `cdeploy` into your CI/CD pipeline with GitHub Actions.
 
 ```yaml
 - name: Run Coolify deploy tool
@@ -197,10 +218,10 @@ console.log(result.success, result.totalCreated, result.totalUpdated);
 | Secret                 | Description                                                         |
 | ---------------------- | ------------------------------------------------------------------- |
 | `COOLIFY_ENDPOINT_URL` | Coolify server base URL (e.g., `https://coolify.example.com`)       |
-| `COOLIFY_TOKEN`        | Coolify API token (from Keys & Tokens in Coolify dashboard)         |
+| `COOLIFY_TOKEN`        | Coolify API token (from "Keys & Tokens" in your Coolify dashboard)  |
 | `COOLIFY_ENV_*`        | `.env` formatted content for an application's environment variables |
 
-## Development
+## 🛠️ Development
 
 ```bash
 # Install dependencies
@@ -216,6 +237,6 @@ pnpm test
 pnpm lint
 ```
 
-## License
+## 📄 License
 
 [MIT](./LICENSE)
