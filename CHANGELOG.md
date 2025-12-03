@@ -1,3 +1,7 @@
+## v0.1.3
+
+- Fixes issue where networking configuration was always required.
+
 ## v0.1.2
 
 - Fixes an issue where the `init` command included the `.git` extension in generated resource names. The git remote parsing logic was updated to correctly strip the extension.
