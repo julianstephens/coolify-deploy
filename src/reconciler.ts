@@ -127,7 +127,8 @@ export class Reconciler {
     );
 
     // Check if the environment exists
-    const environment = await this.client.findEnvironmentByName(manifest.projectId, manifest.environmentName);
+    const environments = await this.client.listEnvironments(manifest.projectId);
+    const environment = environments.find((e) => e.name === manifest.environmentName);
 
     if (!environment) {
       this.logger.error(

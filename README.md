@@ -23,13 +23,13 @@ Define your applications in a `coolify.manifest.json` file and let `cdeploy` han
 
 ## ✨ Features
 
--   **Declarative Deployment**: Define applications in a JSON manifest and let the reconciler handle creation, updates, and deployments.
--   **Manifest Generation**: Scan your repository for `Dockerfile`s and generate a manifest, with optional introspection of your Coolify environment.
--   **Docker Image Support**: Works with prebuilt Docker images from container registries like GHCR.
--   **Environment Variable Management**: Parse `.env` formatted secrets and apply them to applications.
--   **Structured Logging**: All operations are logged in a structured JSON format for clear, machine-readable output.
--   **Dry Run Mode**: Test your deployments without making any actual changes to your infrastructure.
--   **Idempotent**: Safe to run multiple times; it creates new applications or updates existing ones only as needed.
+- **Declarative Deployment**: Define applications in a JSON manifest and let the reconciler handle creation, updates, and deployments.
+- **Manifest Generation**: Scan your repository for `Dockerfile`s and generate a manifest, with optional introspection of your Coolify environment.
+- **Docker Image Support**: Works with prebuilt Docker images from container registries like GHCR.
+- **Environment Variable Management**: Parse `.env` formatted secrets and apply them to applications.
+- **Structured Logging**: All operations are logged in a structured JSON format for clear, machine-readable output.
+- **Dry Run Mode**: Test your deployments without making any actual changes to your infrastructure.
+- **Idempotent**: Safe to run multiple times; it creates new applications or updates existing ones only as needed.
 
 ## 📦 Installation
 
@@ -158,15 +158,15 @@ The `coolify.manifest.json` file declares the desired state of your resources.
 
 ## 🔑 Environment Variables
 
-| Variable               | Required | Description                                                              |
-| ---------------------- | -------- | ------------------------------------------------------------------------ |
-| `COOLIFY_ENDPOINT_URL` | Yes      | Coolify server base URL                                                  |
-| `COOLIFY_TOKEN`        | Yes      | Coolify API token                                                        |
-| `MANIFEST_PATH`        | No       | Path to manifest file (overrides `--manifest` CLI arg)                   |
-| `DOCKER_IMAGE_TAG`     | No       | Docker image tag to deploy (overrides `--tag` CLI arg)                     |
-| `COOLIFY_ENV_*`        | No       | `.env` formatted content for an application (e.g., `COOLIFY_ENV_MY_APP`) |
+| Variable               | Required | Description                                                                     |
+| ---------------------- | -------- | ------------------------------------------------------------------------------- |
+| `COOLIFY_ENDPOINT_URL` | Yes      | Coolify server base URL                                                         |
+| `COOLIFY_TOKEN`        | Yes      | Coolify API token                                                               |
+| `MANIFEST_PATH`        | No       | Path to manifest file (overrides `--manifest` CLI arg)                          |
+| `DOCKER_IMAGE_TAG`     | No       | Docker image tag to deploy (overrides `--tag` CLI arg)                          |
+| `COOLIFY_ENV_*`        | No       | `.env` formatted content for an application (e.g., `COOLIFY_ENV_MY_APP`)        |
 | `LOG_LEVEL`            | No       | Log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal` (default: `info`) |
-| `DRY_RUN`              | No       | Set to `"true"` for dry run mode (overrides `--dry-run` CLI arg)         |
+| `DRY_RUN`              | No       | Set to `"true"` for dry run mode (overrides `--dry-run` CLI arg)                |
 
 ## 📚 Library Usage
 

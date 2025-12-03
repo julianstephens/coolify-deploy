@@ -53,7 +53,8 @@ export const resourceSchema = z.object({
       {
         message: "Ports must be comma-separated numbers between 1 and 65535 (e.g. '8080, 443')",
       },
-    ).describe("Comma-separated list of ports to expose"),
+    )
+    .describe("Comma-separated list of ports to expose"),
   /** Health check configuration */
   healthCheck: healthCheckSchema.optional().describe("Health check configuration for the application"),
 });

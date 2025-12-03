@@ -1,3 +1,7 @@
+## v0.1.4
+
+- Fixes reconciliation logic to correctly handle resources that lack optional networking properties
+
 ## v0.1.3
 
 - Fixes issue where networking configuration was always required.

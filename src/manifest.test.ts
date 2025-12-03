@@ -77,6 +77,21 @@ describe("Manifest Schema", () => {
       const result = resourceSchema.safeParse(resource);
       expect(result.success).toBe(true);
     });
+
+    it("should accept a resource without networking", () => {
+      const resource: Partial<Resource> = {
+        name: "my-app",
+        dockerImageName: "ghcr.io/owner/repo/app",
+        envSecretName: "MY_APP_ENV",
+      };
+
+      const result = resourceSchema.safeParse(resource);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.domains).toBe("");
+        expect(result.data.portsExposes).toBe("");
+      }
+    });
   });
 
   describe("manifestSchema", () => {
