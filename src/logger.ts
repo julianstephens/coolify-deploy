@@ -1,10 +1,10 @@
 import pino from "pino";
 import type { Env } from "./env.js";
 
-const SERVICE_NAME = "coolify-resource-reconciler";
+const SERVICE_NAME = "coolify-deploy";
 
 /**
- * Creates a structured pino logger for the resource reconciler.
+ * Creates a structured pino logger for the tool.
  * Outputs JSON to stdout for integration with log aggregation systems.
  */
 export function createLogger(env: Env): pino.Logger {

@@ -1,6 +1,6 @@
-# Coolify Resource Reconciler
+# Coolify Deploy
 
-A Coolify resource reconciler for managing Docker-based application deployments. This package acts as a lightweight Infrastructure as Code (IaC) tool that reads a declarative manifest (`coolify.manifest.json`) and ensures applications are defined and deployed on Coolify.
+A lightweight Infrastructure as Code (IaC) tool for managing and deploying Docker applications to Coolify. It allows you to define your applications in a JSON manifest and uses a reconciler to handle the creation, updates, and deployments. Key features include the ability to generate a manifest by scanning your repository for Dockerfiles, support for prebuilt Docker images, management of environment variables, and structured logging for all operations. The tool also offers a dry-run mode to test deployments without making live changes and is idempotent, ensuring that repeated runs will not cause unintended side effects.
 
 ## Features
 
@@ -15,7 +15,7 @@ A Coolify resource reconciler for managing Docker-based application deployments.
 ## Installation
 
 ```bash
-pnpm add -g coolify-resource-reconciler
+pnpm add -g coolify-deploy
 ```
 
 ## Usage
@@ -52,7 +52,7 @@ Options:
 
 ```bash
 # Run from your repository root
-resource-reconciler init
+cdeploy init
 ```
 This creates a `coolify.manifest.json` with placeholder values.
 
@@ -64,7 +64,7 @@ export COOLIFY_ENDPOINT_URL="https://coolify.example.com"
 export COOLIFY_TOKEN="your-api-token-here"
 
 # Run init with your project ID
-resource-reconciler init \
+cdeploy init \
   --project-id "your-project-id" \
   --environment production
 ```
@@ -88,10 +88,10 @@ Options:
 
 ```bash
 # Basic usage
-resource-reconciler --manifest ./coolify.manifest.json apply --tag v1.0.0
+cdeploy --manifest ./coolify.manifest.json apply --tag v1.0.0
 
 # With dry run
-resource-reconciler --manifest ./coolify.manifest.json apply --tag latest --dry-run
+cdeploy --manifest ./coolify.manifest.json apply --tag latest --dry-run
 ```
 
 ### 3. `state` - Inspect Resource State
@@ -102,10 +102,10 @@ After applying a manifest, you can use the `state` command to fetch and display 
 
 ```bash
 # Inspect resources defined in the default manifest
-resource-reconciler state
+cdeploy state
 
 # Inspect resources from a specific manifest
-resource-reconciler --manifest ./path/to/your/manifest.json state 
+cdeploy --manifest ./path/to/your/manifest.json state
 ```
 
 ## Manifest Format
@@ -156,7 +156,7 @@ import {
   CoolifyClient,
   Reconciler,
   parseManifest,
-} from "coolify-resource-reconciler";
+} from "coolify-deploy";
 
 // Parse manifest
 const manifest = parseManifest(manifestData);
@@ -181,7 +181,7 @@ console.log(result.success, result.totalCreated, result.totalUpdated);
 ## GitHub Actions Integration
 
 ```yaml
-- name: Run resource reconciler
+- name: Run Coolify deploy tool
   env:
     COOLIFY_ENDPOINT_URL: ${{ secrets.COOLIFY_ENDPOINT_URL }}
     COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
@@ -189,7 +189,7 @@ console.log(result.success, result.totalCreated, result.totalUpdated);
     MANIFEST_PATH: ./coolify.manifest.json
     DOCKER_IMAGE_TAG: latest
   run: |
-    resource-reconciler apply \
+    cdeploy apply \
       --manifest "$MANIFEST_PATH" \
       --tag "$DOCKER_IMAGE_TAG"
 ```

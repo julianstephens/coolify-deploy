@@ -15,8 +15,8 @@ export async function createProgram() {
   const pkg = await readFile(new URL("../package.json", import.meta.url), "utf-8").then(JSON.parse);
 
   const program = new Command()
-    .name("resource-reconciler")
-    .description("CLI to reconcile Coolify resources from a manifest file")
+    .name("cdeploy")
+    .description("A tool to deploy and manage resources in Coolify using a manifest file.")
     .version(pkg.version)
     .option(
       "-m, --manifest <path>",
@@ -63,7 +63,7 @@ export function createApplyCommand() {
 
       const dryRun = globalOptions.dryRun;
 
-      logger.info({ manifestPath, dockerTag, dryRun }, "Starting Coolify resource reconciler");
+      logger.info({ manifestPath, dockerTag, dryRun }, "Starting Coolify deploy tool");
 
       try {
         const absolutePath = resolve(process.cwd(), manifestPath);

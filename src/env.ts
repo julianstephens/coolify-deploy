@@ -24,7 +24,7 @@ export function parseEnv(): Env {
     console.error(
       JSON.stringify({
         level: "fatal",
-        service: "coolify-resource-reconciler",
+        service: "coolify-deploy",
         msg: "Invalid environment variables",
         errors: parsed.error.format(),
       }),
