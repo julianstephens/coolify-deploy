@@ -1,6 +1,6 @@
 {
   "name": "coolify-resource-reconciler",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Coolify resource reconciler for idempotent deployments",
   "type": "module",
   "main": "dist/index.js",
