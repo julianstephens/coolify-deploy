@@ -1,3 +1,9 @@
+## v0.2.1
+
+- Forces `custom_healthcheck_found` to `true` when updating health check configuration. This ensures that Coolify respects the custom health check settings provided in the manifest.
+- Improves error logging for API requests. Now logs the full response body from the Coolify API when a request fails, providing more details on validation errors.
+- Adds debug logging for application creation payloads. This helps troubleshoot validation errors when creating new applications, specifically for cases where required fields might be missing or invalid.
+
 ## v0.2.0
 
 - Enforces strict validation on the manifest file. This ensures that typos in configuration keys (like `healthcheck` instead of `healthCheck`) are caught immediately instead of being silently ignored.

@@ -20,44 +20,46 @@ export const healthCheckSchema = z.object({
 /**
  * Schema for a single resource/application definition in the manifest.
  */
-export const resourceSchema = z.object({
-  /** Unique name for this application in Coolify */
-  name: z.string().min(1).describe("Application name in Coolify"),
-  /** Human-readable description */
-  description: z.string().default("").describe("Application description"),
-  /** Docker image name (without tag), e.g., "ghcr.io/owner/repo/service" */
-  dockerImageName: z.string().min(1).describe("Docker image name without tag"),
-  /** Name of the GitHub secret containing the environment variables for this app */
-  envSecretName: z.string().min(1).describe("Name of the GitHub secret for environment variables"),
-  /** Domain(s) for the application, comma-separated if multiple */
-  domains: z.string().optional().default("").describe("Comma-separated list of domains for the application"),
-  /** Port(s) to expose, comma-separated if multiple */
-  portsExposes: z
-    .string()
-    .optional()
-    .default("")
-    .refine(
-      (val) => {
-        if (val === "") {
-          return true;
-        }
-        // Allow optional spaces around commas
-        const parts = val.split(",").map((p) => p.trim());
-        if (parts.length === 0) return false;
-        return parts.every((p) => {
-          const n = Number(p);
-          // Must be integer, in range 1-65535
-          return /^\d+$/.test(p) && n >= 1 && n <= 65535;
-        });
-      },
-      {
-        message: "Ports must be comma-separated numbers between 1 and 65535 (e.g. '8080, 443')",
-      },
-    )
-    .describe("Comma-separated list of ports to expose"),
-  /** Health check configuration */
-  healthCheck: healthCheckSchema.optional().describe("Health check configuration for the application"),
-}).strict();
+export const resourceSchema = z
+  .object({
+    /** Unique name for this application in Coolify */
+    name: z.string().min(1).describe("Application name in Coolify"),
+    /** Human-readable description */
+    description: z.string().default("").describe("Application description"),
+    /** Docker image name (without tag), e.g., "ghcr.io/owner/repo/service" */
+    dockerImageName: z.string().min(1).describe("Docker image name without tag"),
+    /** Name of the GitHub secret containing the environment variables for this app */
+    envSecretName: z.string().min(1).describe("Name of the GitHub secret for environment variables"),
+    /** Domain(s) for the application, comma-separated if multiple */
+    domains: z.string().optional().default("").describe("Comma-separated list of domains for the application"),
+    /** Port(s) to expose, comma-separated if multiple */
+    portsExposes: z
+      .string()
+      .optional()
+      .default("")
+      .refine(
+        (val) => {
+          if (val === "") {
+            return true;
+          }
+          // Allow optional spaces around commas
+          const parts = val.split(",").map((p) => p.trim());
+          if (parts.length === 0) return false;
+          return parts.every((p) => {
+            const n = Number(p);
+            // Must be integer, in range 1-65535
+            return /^\d+$/.test(p) && n >= 1 && n <= 65535;
+          });
+        },
+        {
+          message: "Ports must be comma-separated numbers between 1 and 65535 (e.g. '8080, 443')",
+        },
+      )
+      .describe("Comma-separated list of ports to expose"),
+    /** Health check configuration */
+    healthCheck: healthCheckSchema.optional().describe("Health check configuration for the application"),
+  })
+  .strict();
 
 /**
  * Schema for the complete Coolify manifest file.

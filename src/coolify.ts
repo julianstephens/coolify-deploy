@@ -83,6 +83,7 @@ export class CoolifyClient {
           url,
           status: response.status,
           error: errorMessage,
+          responseBody: error, // Log the full error object
         },
         "API request failed",
       );
@@ -166,6 +167,7 @@ export class CoolifyClient {
     }
 
     this.logger.info({ name: options.name }, "Creating Docker image application");
+    this.logger.debug({ options }, "Create application payload");
     return this.requestRequired<CoolifyCreateUpdateAppResponse>("POST", "/api/v1/applications/dockerimage", options);
   }
 
@@ -336,6 +338,9 @@ export class CoolifyClient {
       options.health_check_timeout = resource.healthCheck.timeout;
       options.health_check_retries = resource.healthCheck.retries;
       options.health_check_start_period = resource.healthCheck.startPeriod;
+      // Force custom health check to be found/used
+      // @ts-expect-error - This property is not in the types but is required by the API
+      options.custom_healthcheck_found = true;
     }
 
     return options;
@@ -367,6 +372,9 @@ export class CoolifyClient {
       options.health_check_timeout = resource.healthCheck.timeout;
       options.health_check_retries = resource.healthCheck.retries;
       options.health_check_start_period = resource.healthCheck.startPeriod;
+      // Force custom health check to be found/used
+      // @ts-expect-error - This property is not in the types but is required by the API
+      options.custom_healthcheck_found = true;
     }
 
     return options;
