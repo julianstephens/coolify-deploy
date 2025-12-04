@@ -1,3 +1,8 @@
+## v0.1.8
+
+- Optimizes deployment polling to run concurrently. Instead of waiting for each application to finish deploying one by one, the tool now triggers all deployments first and then waits for them in parallel, significantly reducing total runtime.
+- Fixes "Validation failed" error when creating or updating applications with empty `portsExposes` in the manifest. The tool now correctly omits the field instead of sending an empty string.
+
 ## v0.1.7
 
 - Improves error messages for API permission errors (401/403) to explicitly suggest checking token scopes.

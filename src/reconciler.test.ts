@@ -241,6 +241,7 @@ describe("Reconciler", () => {
         name: "test-app",
         action: "created",
         uuid: "new-app-uuid",
+        deploymentUuid: "deploy-uuid",
       });
       expect(mockClient.findApplicationByName).toHaveBeenCalledWith("test-app", 1);
       expect(mockClient.createDockerImageApplication).toHaveBeenCalledWith(
@@ -288,6 +289,7 @@ describe("Reconciler", () => {
         name: "test-app",
         action: "updated",
         uuid: "existing-app-uuid",
+        deploymentUuid: "deploy-uuid-update",
       });
       expect(mockClient.findApplicationByName).toHaveBeenCalledWith("test-app", 1);
       expect(mockClient.updateApplication).toHaveBeenCalledWith(

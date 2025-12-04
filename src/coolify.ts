@@ -318,7 +318,7 @@ export class CoolifyClient {
       name: resource.name,
       description: resource.description,
       domains: resource.domains || undefined,
-      ports_exposes: resource.portsExposes,
+      ports_exposes: resource.portsExposes || undefined,
       instant_deploy: false, // We'll deploy after setting env vars
     };
 
@@ -350,7 +350,7 @@ export class CoolifyClient {
       name: resource.name,
       description: resource.description,
       domains: resource.domains || undefined,
-      ports_exposes: resource.portsExposes,
+      ports_exposes: resource.portsExposes || undefined,
     };
 
     if (resource.healthCheck) {

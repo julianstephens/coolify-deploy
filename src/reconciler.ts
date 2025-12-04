@@ -9,6 +9,7 @@ export interface ReconcileResourceResult {
   name: string;
   action: "created" | "updated" | "unchanged" | "failed" | "pruned";
   uuid?: string;
+  deploymentUuid?: string;
   error?: string;
 }
 
@@ -219,6 +220,43 @@ export class Reconciler {
     results.push(...prunedResources);
     totalPruned = prunedResources.length;
 
+    // Wait for all deployments to finish
+    const deployments = results.filter((r) => r.deploymentUuid).map((r) => ({ name: r.name, uuid: r.deploymentUuid! }));
+
+    if (deployments.length > 0) {
+      this.logger.info({ count: deployments.length }, "Waiting for deployments to finish...");
+      const deploymentResults = await Promise.allSettled(deployments.map((d) => this.client.waitForDeployment(d.uuid)));
+
+      let deploymentFailures = 0;
+      deploymentResults.forEach((result, index) => {
+        const deployment = deployments[index];
+        if (result.status === "rejected") {
+          deploymentFailures++;
+          this.logger.error(
+            { app: deployment.name, deploymentUuid: deployment.uuid, error: result.reason.message },
+            "Deployment failed",
+          );
+          // Update the resource result to reflect the failure
+          const resourceResult = results.find((r) => r.deploymentUuid === deployment.uuid);
+          if (resourceResult) {
+            resourceResult.action = "failed";
+            resourceResult.error = result.reason.message;
+          }
+        } else {
+          this.logger.info(
+            { app: deployment.name, deploymentUuid: deployment.uuid },
+            "Deployment finished successfully",
+          );
+        }
+      });
+
+      if (deploymentFailures > 0) {
+        totalFailed += deploymentFailures;
+        // Adjust counts if needed (e.g., if it was counted as created/updated but then failed)
+        // For simplicity, we just increment totalFailed. The resource action is updated above.
+      }
+    }
+
     const success = totalFailed === 0;
     this.logger.info({ success, totalCreated, totalUpdated, totalFailed, totalPruned }, "Reconciliation complete");
 
@@ -327,13 +365,13 @@ export class Reconciler {
         const deploymentUuid = await this.client.deployApplication(existingApp.uuid);
         if (deploymentUuid) {
           this.logger.info({ app: name, deploymentUuid }, "Deployment triggered");
-          await this.client.waitForDeployment(deploymentUuid);
         }
 
         return {
           name: name,
           action: "updated",
           uuid: existingApp.uuid,
+          deploymentUuid: deploymentUuid ?? undefined,
         };
       } else {
         // App doesn't exist, create it
@@ -359,13 +397,13 @@ export class Reconciler {
         const deploymentUuid = await this.client.deployApplication(newApp.uuid);
         if (deploymentUuid) {
           this.logger.info({ app: name, deploymentUuid }, "Deployment triggered");
-          await this.client.waitForDeployment(deploymentUuid);
         }
 
         return {
           name: name,
           action: "created",
           uuid: newApp.uuid,
+          deploymentUuid: deploymentUuid ?? undefined,
         };
       }
     } catch (error) {
