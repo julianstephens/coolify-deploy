@@ -1,4 +1,4 @@
-import { assembleProgram } from "./program.js";
+import { assembleProgram } from "./program";
 
 async function main() {
   const program = await assembleProgram();

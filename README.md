@@ -28,7 +28,9 @@ Define your applications in a `coolify.manifest.json` file and let `cdeploy` han
 - **Docker Image Support**: Works with prebuilt Docker images from container registries like GHCR.
 - **Environment Variable Management**: Parse `.env` formatted secrets and apply them to applications.
 - **Structured Logging**: All operations are logged in a structured JSON format for clear, machine-readable output.
-- **Dry Run Mode**: Test your deployments without making any actual changes to your infrastructure.
+- **Dry Run & Drift Detection**: Test your deployments without making changes and see a summary of what would happen (create, update, prune).
+- **Strict Reconciliation**: Automatically prunes undefined resources and environment variables to prevent configuration drift.
+- **Deployment Polling**: Waits for deployments to finish and reports the final status, ensuring CI pipelines reflect the true outcome.
 - **Idempotent**: Safe to run multiple times; it creates new applications or updates existing ones only as needed.
 
 ## 📦 Installation
@@ -93,7 +95,12 @@ The manifest will be auto-populated with real values from matching applications 
 
 ### 2. `apply` - Apply a Manifest 🚢
 
-The `apply` command reads a manifest and reconciles the state of your applications in Coolify. It will create, update, and deploy applications as needed.
+The `apply` command reads a manifest and reconciles the state of your applications in Coolify. It will:
+
+1. Create new applications defined in the manifest.
+2. Update existing applications with new configuration.
+3. Prune applications and environment variables that are not in the manifest.
+4. Trigger deployments and wait for them to complete.
 
 #### `apply` Options
 

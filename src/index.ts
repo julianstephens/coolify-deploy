@@ -1,21 +1,21 @@
 // Export types and functions for use as a library
-export { parseManifest, safeParseManifest, manifestSchema, resourceSchema, healthCheckSchema } from "./manifest.js";
-export type { Manifest, Resource, HealthCheck } from "./manifest.js";
+export { healthCheckSchema, manifestSchema, parseManifest, resourceSchema, safeParseManifest } from "./manifest";
+export type { HealthCheck, Manifest, Resource } from "./manifest";
 
-export { CoolifyClient } from "./coolify.js";
+export { CoolifyClient } from "./coolify";
 export type {
+  CoolifyApiError,
   CoolifyApplication,
   CoolifyEnvVar,
-  CoolifyApiError,
   CreateDockerImageAppOptions,
   UpdateAppOptions,
-} from "./coolify.js";
+} from "./coolify";
 
-export { Reconciler, parseEnvFile, envVarsToCoolifyFormat } from "./reconciler.js";
-export type { ReconcileResourceResult, ReconcileResult, ReconcilerOptions } from "./reconciler.js";
+export { envVarsToCoolifyFormat, parseEnvFile, Reconciler } from "./reconciler";
+export type { ReconcileResourceResult, ReconcileResult, ReconcilerOptions } from "./reconciler";
 
-export { createLogger } from "./logger.js";
-export type { Logger } from "./logger.js";
+export { createLogger } from "./logger";
+export type { Logger } from "./logger";
 
-export { parseEnv, envSchema } from "./env.js";
-export type { Env } from "./env.js";
+export { envSchema, parseEnv } from "./env";
+export type { Env } from "./env";

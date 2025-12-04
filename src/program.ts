@@ -2,11 +2,11 @@ import { Command } from "@commander-js/extra-typings";
 import { execSync } from "node:child_process";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { CoolifyClient } from "./coolify.js";
-import { parseEnv } from "./env.js";
-import { createLogger } from "./logger.js";
-import { parseManifest } from "./manifest.js";
-import { Reconciler } from "./reconciler.js";
+import { CoolifyClient } from "./coolify";
+import { parseEnv } from "./env";
+import { createLogger } from "./logger";
+import { parseManifest } from "./manifest";
+import { Reconciler } from "./reconciler";
 
 /**
  * Creates the root program with global options.
@@ -105,10 +105,26 @@ export function createApplyCommand() {
             totalCreated: result.totalCreated,
             totalUpdated: result.totalUpdated,
             totalFailed: result.totalFailed,
+            totalPruned: result.totalPruned,
             resources: result.resources,
           },
           "Reconciliation complete",
         );
+
+        if (dryRun) {
+          console.log("\n--- Dry Run Summary ---");
+          console.table(
+            result.resources.map((r) => ({
+              Resource: r.name,
+              Action: r.action,
+              UUID: r.uuid || "N/A",
+              Error: r.error || "",
+            })),
+          );
+          console.log(
+            `\nCreated: ${result.totalCreated}, Updated: ${result.totalUpdated}, Pruned: ${result.totalPruned}, Failed: ${result.totalFailed}\n`,
+          );
+        }
 
         if (!result.success) {
           logger.error({}, "Reconciliation failed with errors");
@@ -166,13 +182,25 @@ export function createStateCommand() {
 
         const client = new CoolifyClient(env.COOLIFY_ENDPOINT_URL, env.COOLIFY_TOKEN, logger, globalOptions.dryRun);
 
+        const environment = await client.findEnvironmentByName(manifest.projectId, manifest.environmentName);
+        if (!environment) {
+          logger.fatal(
+            {
+              projectId: manifest.projectId,
+              environmentName: manifest.environmentName,
+            },
+            "Target environment does not exist in Coolify project",
+          );
+          process.exit(1);
+        }
+
         const allowedKeys = new Set([
           "exists",
           "uuid",
           "name",
           "docker_registry_image_name",
           "docker_registry_image_tag",
-          "fqdn",
+          "domains",
           "health_check_enabled",
           "health_check_host",
           "health_check_interval",
@@ -197,7 +225,7 @@ export function createStateCommand() {
 
         const resourceStates = [];
         for (const resource of manifest.resources) {
-          const app = await client.findApplicationByName(resource.name);
+          const app = await client.findApplicationByName(resource.name, environment.id);
           if (app) {
             const filtered: Record<string, unknown> = { exists: true };
             for (const key of allowedKeys) {
@@ -379,8 +407,8 @@ export function createInitCommand() {
 
           // Try to get domains from existing application if available
           const existingApp = existingApps[fullServiceName] as unknown as Record<string, unknown>;
-          if (existingApp && existingApp.fqdn) {
-            resource.domains = existingApp.fqdn as string;
+          if (existingApp && existingApp.domains) {
+            resource.domains = existingApp.domains as string;
           }
 
           if (port) {

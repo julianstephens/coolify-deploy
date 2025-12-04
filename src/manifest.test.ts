@@ -6,7 +6,7 @@ import {
   safeParseManifest,
   type Manifest,
   type Resource,
-} from "./manifest.js";
+} from "./manifest";
 
 describe("Manifest Schema", () => {
   describe("resourceSchema", () => {
@@ -99,7 +99,7 @@ describe("Manifest Schema", () => {
       const manifest: Manifest = {
         projectId: "project-uuid",
         destinationId: "destination-uuid",
-        serverUuid: "server-uuid",
+        serverId: "server-uuid",
         environmentName: "production",
         envFileSecretName: "GLOBAL_ENV",
         resources: [

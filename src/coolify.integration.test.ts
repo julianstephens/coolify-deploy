@@ -26,8 +26,9 @@ describe("Coolify Client - Introspection for Init Command", () => {
         {
           id: "app1",
           name: "my-app",
+          environment_id: 0,
           docker_registry_image_name: "ghcr.io/user/my-app",
-          fqdn: "app.example.com",
+          domains: "app.example.com",
           ports_exposes: "3000",
           description: "Test application",
           health_check_path: "/api/health",
@@ -37,7 +38,7 @@ describe("Coolify Client - Introspection for Init Command", () => {
 
       vi.spyOn(client, "listApplications").mockResolvedValueOnce(mockApps as unknown as never);
 
-      const result = await client.findApplicationByName("my-app");
+      const result = await client.findApplicationByName("my-app", 0);
 
       expect(result).toEqual(mockApps[0]);
     });
@@ -52,7 +53,7 @@ describe("Coolify Client - Introspection for Init Command", () => {
 
       vi.spyOn(client, "listApplications").mockResolvedValueOnce(mockApps as unknown as never);
 
-      const result = await client.findApplicationByName("my-app");
+      const result = await client.findApplicationByName("my-app", 0);
 
       expect(result).toBeNull();
     });
@@ -60,7 +61,7 @@ describe("Coolify Client - Introspection for Init Command", () => {
     it("should handle empty application list", async () => {
       vi.spyOn(client, "listApplications").mockResolvedValueOnce([] as never);
 
-      const result = await client.findApplicationByName("my-app");
+      const result = await client.findApplicationByName("my-app", 0);
 
       expect(result).toBeNull();
     });
@@ -72,6 +73,7 @@ describe("Coolify Client - Introspection for Init Command", () => {
         {
           id: "app1",
           name: "my-service",
+          environment_id: 0,
           docker_registry_image_name: "ghcr.io/org/my-service:latest",
           fqdn: "my-service.prod.example.com",
           ports_exposes: "8080",
@@ -85,7 +87,7 @@ describe("Coolify Client - Introspection for Init Command", () => {
 
       // Simulate finding an app for enrichment
       const appName = "my-service";
-      const foundApp = await client.findApplicationByName(appName);
+      const foundApp = await client.findApplicationByName(appName, 0);
 
       if (foundApp) {
         // Verify introspected values would be used
@@ -108,7 +110,7 @@ describe("Coolify Client - Introspection for Init Command", () => {
 
       vi.spyOn(client, "listApplications").mockResolvedValueOnce(existingApps as unknown as never);
 
-      const foundApp = await client.findApplicationByName("my-service");
+      const foundApp = await client.findApplicationByName("my-service", 0);
 
       expect(foundApp).toBeNull();
 

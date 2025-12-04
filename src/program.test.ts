@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createInitCommand } from "./program.js";
+import { createInitCommand } from "./program";
 
 vi.mock("node:fs/promises");
 vi.mock("node:child_process");

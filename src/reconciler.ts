@@ -1,13 +1,13 @@
-import { CoolifyClient, type CoolifyEnvVar } from "./coolify.js";
-import type { Logger } from "./logger.js";
-import type { Manifest, Resource } from "./manifest.js";
+import { CoolifyClient, type CoolifyEnvVar } from "./coolify";
+import type { Logger } from "./logger";
+import type { Manifest, Resource } from "./manifest";
 
 /**
  * Result of reconciling a single resource.
  */
 export interface ReconcileResourceResult {
   name: string;
-  action: "created" | "updated" | "unchanged" | "failed";
+  action: "created" | "updated" | "unchanged" | "failed" | "pruned";
   uuid?: string;
   error?: string;
 }
@@ -21,6 +21,7 @@ export interface ReconcileResult {
   totalCreated: number;
   totalUpdated: number;
   totalFailed: number;
+  totalPruned: number;
 }
 
 /**
@@ -115,6 +116,7 @@ export class Reconciler {
     let totalCreated = 0;
     let totalUpdated = 0;
     let totalFailed = 0;
+    let totalPruned = 0;
 
     this.logger.info(
       {
@@ -127,8 +129,7 @@ export class Reconciler {
     );
 
     // Check if the environment exists
-    const environments = await this.client.listEnvironments(manifest.projectId);
-    const environment = environments.find((e) => e.name === manifest.environmentName);
+    const environment = await this.client.findEnvironmentByName(manifest.projectId, manifest.environmentName);
 
     if (!environment) {
       this.logger.error(
@@ -148,6 +149,7 @@ export class Reconciler {
         totalCreated: 0,
         totalUpdated: 0,
         totalFailed: manifest.resources.length,
+        totalPruned: 0,
       };
     }
 
@@ -166,6 +168,7 @@ export class Reconciler {
         totalCreated: 0,
         totalUpdated: 0,
         totalFailed: manifest.resources.length,
+        totalPruned: 0,
       };
     }
 
@@ -189,7 +192,7 @@ export class Reconciler {
           );
         }
 
-        const result = await this.reconcileResource(resource, serverId, envVars);
+        const result = await this.reconcileResource(resource, serverId, environment.uuid, environment.id, envVars);
         results.push(result);
 
         if (result.action === "created") {
@@ -211,8 +214,13 @@ export class Reconciler {
       }
     }
 
+    // Prune resources
+    const prunedResources = await this.pruneResources(environment.id, manifest.resources);
+    results.push(...prunedResources);
+    totalPruned = prunedResources.length;
+
     const success = totalFailed === 0;
-    this.logger.info({ success, totalCreated, totalUpdated, totalFailed }, "Reconciliation complete");
+    this.logger.info({ success, totalCreated, totalUpdated, totalFailed, totalPruned }, "Reconciliation complete");
 
     return {
       success,
@@ -220,7 +228,71 @@ export class Reconciler {
       totalCreated,
       totalUpdated,
       totalFailed,
+      totalPruned,
     };
+  }
+
+  /**
+   * Reconciles environment variables for an application.
+   * Prunes variables that are not present in the desired list.
+   */
+  private async reconcileEnvironmentVariables(appUuid: string, desiredEnvVars: CoolifyEnvVar[]): Promise<void> {
+    // 1. List current env vars
+    const currentEnvVars = await this.client.listEnvironmentVariables(appUuid);
+
+    // 2. Identify env vars to delete
+    const desiredKeys = new Set(desiredEnvVars.map((e) => e.key));
+    // We only delete variables that are NOT in the desired list.
+    // We filter out variables that are marked as preview-only if we are not deploying a preview?
+    // For now, we assume strict reconciliation: if it's not in the manifest, it goes.
+    const varsToDelete = currentEnvVars.filter((e) => !desiredKeys.has(e.key));
+
+    if (varsToDelete.length > 0) {
+      this.logger.info({ appUuid, count: varsToDelete.length }, "Pruning environment variables");
+      for (const envVar of varsToDelete) {
+        await this.client.deleteEnvironmentVariable(appUuid, envVar.uuid);
+      }
+    }
+
+    // 3. Update/Add desired env vars
+    if (desiredEnvVars.length > 0) {
+      await this.client.updateEnvironmentVariables(appUuid, desiredEnvVars);
+    }
+  }
+
+  /**
+   * Prunes resources that are present in the environment but not in the manifest.
+   */
+  private async pruneResources(
+    environmentId: number,
+    manifestResources: Resource[],
+  ): Promise<ReconcileResourceResult[]> {
+    const results: ReconcileResourceResult[] = [];
+
+    // 1. List all applications
+    const allApps = await this.client.listApplications();
+
+    // 2. Filter by environment
+    const envApps = allApps.filter((app) => app.environment_id === environmentId);
+
+    // 3. Identify apps to delete
+    const manifestAppNames = new Set(manifestResources.map((r) => r.name));
+    const appsToDelete = envApps.filter((app) => !manifestAppNames.has(app.name));
+
+    if (appsToDelete.length > 0) {
+      this.logger.info({ count: appsToDelete.length }, "Pruning resources");
+      for (const app of appsToDelete) {
+        this.logger.info({ app: app.name, uuid: app.uuid }, "Deleting resource");
+        await this.client.deleteApplication(app.uuid);
+        results.push({
+          name: app.name,
+          action: "pruned",
+          uuid: app.uuid,
+        });
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -229,7 +301,9 @@ export class Reconciler {
   private async reconcileResource(
     resource: Resource,
     serverId: string,
-    _envVars: CoolifyEnvVar[],
+    environmentUuid: string,
+    environmentId: number,
+    envVars: CoolifyEnvVar[],
   ): Promise<ReconcileResourceResult> {
     const { name } = resource;
     const { manifest, dockerTag } = this.options;
@@ -237,7 +311,7 @@ export class Reconciler {
     this.logger.info({ resource: resource.name, dockerTag }, "Reconciling resource");
 
     // Try to find existing application
-    const existingApp = await this.client.findApplicationByName(name);
+    const existingApp = await this.client.findApplicationByName(name, environmentId);
 
     try {
       if (existingApp) {
@@ -245,6 +319,17 @@ export class Reconciler {
         this.logger.info({ app: name }, `Application already exists, updating...`);
         const updateOptions = CoolifyClient.buildUpdateOptions(resource, dockerTag);
         await this.client.updateApplication(existingApp.uuid, updateOptions);
+
+        // Reconcile env vars (prune and update)
+        await this.reconcileEnvironmentVariables(existingApp.uuid, envVars);
+
+        // Trigger deployment
+        const deploymentUuid = await this.client.deployApplication(existingApp.uuid);
+        if (deploymentUuid) {
+          this.logger.info({ app: name, deploymentUuid }, "Deployment triggered");
+          await this.client.waitForDeployment(deploymentUuid);
+        }
+
         return {
           name: name,
           action: "updated",
@@ -259,13 +344,28 @@ export class Reconciler {
           manifest.projectId,
           serverId,
           manifest.environmentName,
+          environmentUuid,
           manifest.destinationId,
           dockerTag,
         );
-        await this.client.createDockerImageApplication(createOptions);
+        const newApp = await this.client.createDockerImageApplication(createOptions);
+
+        // Update env vars if they are provided
+        if (envVars.length > 0) {
+          await this.client.updateEnvironmentVariables(newApp.uuid, envVars);
+        }
+
+        // Trigger deployment
+        const deploymentUuid = await this.client.deployApplication(newApp.uuid);
+        if (deploymentUuid) {
+          this.logger.info({ app: name, deploymentUuid }, "Deployment triggered");
+          await this.client.waitForDeployment(deploymentUuid);
+        }
+
         return {
           name: name,
           action: "created",
+          uuid: newApp.uuid,
         };
       }
     } catch (error) {

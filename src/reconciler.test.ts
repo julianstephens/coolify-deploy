@@ -1,8 +1,8 @@
 import type pino from "pino";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CoolifyClient } from "./coolify.js";
-import type { Manifest } from "./manifest.js";
-import { envVarsToCoolifyFormat, parseEnvFile, Reconciler } from "./reconciler.js";
+import { CoolifyClient } from "./coolify";
+import type { Manifest } from "./manifest";
+import { envVarsToCoolifyFormat, parseEnvFile, Reconciler } from "./reconciler";
 
 describe("parseEnvFile", () => {
   it("should parse simple key=value pairs", () => {
@@ -174,8 +174,14 @@ describe("Reconciler", () => {
     createDockerImageApplication: vi.fn(),
     updateApplication: vi.fn(),
     updateEnvironmentVariables: vi.fn(),
+    listEnvironmentVariables: vi.fn(),
+    deleteEnvironmentVariable: vi.fn(),
     deployApplication: vi.fn(),
     listEnvironments: vi.fn(),
+    findEnvironmentByName: vi.fn(),
+    waitForDeployment: vi.fn(),
+    listApplications: vi.fn(),
+    deleteApplication: vi.fn(),
   });
 
   const createTestManifest = (): Manifest => ({
@@ -207,12 +213,13 @@ describe("Reconciler", () => {
   describe("reconcile()", () => {
     it("should create a new application when it does not exist", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       mockClient.findApplicationByName.mockResolvedValue(null);
       mockClient.createDockerImageApplication.mockResolvedValue({
         uuid: "new-app-uuid",
-        name: "test-app",
       });
+      mockClient.deployApplication.mockResolvedValue("deploy-uuid");
+      mockClient.listApplications.mockResolvedValue([]);
 
       const manifest = createTestManifest();
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
@@ -233,22 +240,34 @@ describe("Reconciler", () => {
       expect(result.resources[0]).toEqual({
         name: "test-app",
         action: "created",
+        uuid: "new-app-uuid",
       });
+      expect(mockClient.findApplicationByName).toHaveBeenCalledWith("test-app", 1);
       expect(mockClient.createDockerImageApplication).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "test-app",
           docker_registry_image_tag: "v1.0.0",
+          environment_uuid: "env-uuid",
         }),
+      );
+      expect(mockClient.deployApplication).toHaveBeenCalledWith("new-app-uuid");
+      expect(mockClient.waitForDeployment).toHaveBeenCalledWith("deploy-uuid");
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        { app: "test-app", deploymentUuid: "deploy-uuid" },
+        "Deployment triggered",
       );
     });
 
     it("should update an existing application", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       mockClient.findApplicationByName.mockResolvedValue({
         uuid: "existing-app-uuid",
         name: "test-app",
       });
+      mockClient.listEnvironmentVariables.mockResolvedValue([]);
+      mockClient.deployApplication.mockResolvedValue("deploy-uuid-update");
+      mockClient.listApplications.mockResolvedValue([]);
 
       const manifest = createTestManifest();
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
@@ -270,18 +289,20 @@ describe("Reconciler", () => {
         action: "updated",
         uuid: "existing-app-uuid",
       });
+      expect(mockClient.findApplicationByName).toHaveBeenCalledWith("test-app", 1);
       expect(mockClient.updateApplication).toHaveBeenCalledWith(
         "existing-app-uuid",
         expect.objectContaining({
           docker_registry_image_tag: "v2.0.0",
         }),
       );
-      expect(mockClient.deployApplication).not.toHaveBeenCalled();
+      expect(mockClient.deployApplication).toHaveBeenCalledWith("existing-app-uuid");
+      expect(mockClient.waitForDeployment).toHaveBeenCalledWith("deploy-uuid-update");
     });
 
     it("should fail if the target environment does not exist", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([]);
+      mockClient.findEnvironmentByName.mockResolvedValue(null);
 
       const manifest = createTestManifest();
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
@@ -296,7 +317,7 @@ describe("Reconciler", () => {
 
       expect(result.success).toBe(false);
       expect(result.totalFailed).toBe(manifest.resources.length);
-      expect(mockClient.listEnvironments).toHaveBeenCalledWith("test-project-uuid");
+      expect(mockClient.findEnvironmentByName).toHaveBeenCalledWith("test-project-uuid", "production");
       expect(mockLogger.error).toHaveBeenCalledWith(
         {
           projectId: "test-project-uuid",
@@ -309,12 +330,12 @@ describe("Reconciler", () => {
 
     it("should proceed if the target environment exists", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       mockClient.findApplicationByName.mockResolvedValue(null);
       mockClient.createDockerImageApplication.mockResolvedValue({
         uuid: "new-app-uuid",
-        name: "test-app",
       });
+      mockClient.listApplications.mockResolvedValue([]);
 
       const manifest = createTestManifest();
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
@@ -329,7 +350,7 @@ describe("Reconciler", () => {
 
       expect(result.success).toBe(true);
       expect(result.totalCreated).toBe(1);
-      expect(mockClient.listEnvironments).toHaveBeenCalledWith("test-project-uuid");
+      expect(mockClient.findEnvironmentByName).toHaveBeenCalledWith("test-project-uuid", "production");
       expect(mockLogger.error).not.toHaveBeenCalledWith(
         expect.any(Object), // The first argument is an object with metadata
         "Target environment does not exist in Coolify project",
@@ -337,16 +358,95 @@ describe("Reconciler", () => {
       expect(mockClient.createDockerImageApplication).toHaveBeenCalled();
     });
 
+    it("should prune environment variables that are not in the manifest", async () => {
+      const mockClient = createMockClient();
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
+      mockClient.findApplicationByName.mockResolvedValue({
+        uuid: "existing-app-uuid",
+        name: "test-app",
+      });
+
+      // Mock existing env vars: KEY1 (keep), KEY2 (delete)
+      mockClient.listEnvironmentVariables.mockResolvedValue([
+        { key: "KEY1", value: "val1", uuid: "uuid-1" },
+        { key: "KEY2", value: "val2", uuid: "uuid-2" },
+      ]);
+
+      mockClient.deployApplication.mockResolvedValue("deploy-uuid");
+      mockClient.listApplications.mockResolvedValue([]);
+
+      const manifest = createTestManifest();
+      const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
+        manifest,
+        dockerTag: "v1.0.0",
+        envSecrets: {
+          TEST_APP_ENV: "KEY1=new_val1",
+        },
+      });
+
+      const result = await reconciler.reconcile();
+
+      expect(result.success).toBe(true);
+
+      // Should delete KEY2
+      expect(mockClient.deleteEnvironmentVariable).toHaveBeenCalledWith("existing-app-uuid", "uuid-2");
+      expect(mockClient.deleteEnvironmentVariable).not.toHaveBeenCalledWith("existing-app-uuid", "uuid-1");
+
+      // Should update KEY1
+      expect(mockClient.updateEnvironmentVariables).toHaveBeenCalledWith("existing-app-uuid", [
+        expect.objectContaining({ key: "KEY1", value: "new_val1" }),
+      ]);
+    });
+
+    it("should prune resources that are not in the manifest", async () => {
+      const mockClient = createMockClient();
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
+      mockClient.findApplicationByName.mockResolvedValue(null);
+      mockClient.createDockerImageApplication.mockResolvedValue({
+        uuid: "new-app-uuid",
+      });
+      mockClient.deployApplication.mockResolvedValue("deploy-uuid");
+
+      // Mock existing apps: test-app (keep), old-app (delete)
+      mockClient.listApplications.mockResolvedValue([
+        { name: "test-app", uuid: "new-app-uuid", environment_id: 1 },
+        { name: "old-app", uuid: "old-app-uuid", environment_id: 1 },
+        { name: "other-env-app", uuid: "other-uuid", environment_id: 2 }, // Should ignore
+      ]);
+
+      const manifest = createTestManifest(); // Contains "test-app"
+      const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
+        manifest,
+        dockerTag: "v1.0.0",
+        envSecrets: {
+          TEST_APP_ENV: "",
+        },
+      });
+
+      const result = await reconciler.reconcile();
+
+      expect(result.success).toBe(true);
+      expect(result.totalPruned).toBe(1);
+
+      // Should delete old-app
+      expect(mockClient.deleteApplication).toHaveBeenCalledWith("old-app-uuid");
+
+      // Should NOT delete test-app or other-env-app
+      expect(mockClient.deleteApplication).not.toHaveBeenCalledWith("new-app-uuid");
+      expect(mockClient.deleteApplication).not.toHaveBeenCalledWith("other-uuid");
+    });
+
     it("should handle multiple resources", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       mockClient.findApplicationByName
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ uuid: "existing-uuid", name: "app-2" });
+      mockClient.listEnvironmentVariables.mockResolvedValue([]);
       mockClient.createDockerImageApplication.mockResolvedValue({
         uuid: "new-uuid",
-        name: "app-1",
       });
+      mockClient.listApplications.mockResolvedValue([]);
 
       const manifest: Manifest = {
         ...createTestManifest(),
@@ -389,7 +489,7 @@ describe("Reconciler", () => {
 
     it("should fail when server ID is not provided", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       const manifest: Manifest = {
         projectId: "test-project-uuid",
         destinationId: "test-destination-uuid",
@@ -427,8 +527,9 @@ describe("Reconciler", () => {
 
     it("should handle resource reconciliation errors gracefully", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       mockClient.findApplicationByName.mockRejectedValue(new Error("API Error"));
+      mockClient.listApplications.mockResolvedValue([]);
 
       const manifest = createTestManifest();
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
@@ -452,12 +553,13 @@ describe("Reconciler", () => {
 
     it("should parse and apply environment variables", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       mockClient.findApplicationByName.mockResolvedValue(null);
       mockClient.createDockerImageApplication.mockResolvedValue({
         uuid: "new-app-uuid",
-        name: "test-app",
       });
+      mockClient.deployApplication.mockResolvedValue("deploy-uuid");
+      mockClient.listApplications.mockResolvedValue([]);
 
       const manifest = createTestManifest();
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
@@ -471,17 +573,24 @@ describe("Reconciler", () => {
       const result = await reconciler.reconcile();
 
       expect(result.success).toBe(true);
-      expect(mockClient.updateEnvironmentVariables).not.toHaveBeenCalled();
+      expect(mockClient.updateEnvironmentVariables).toHaveBeenCalledWith(
+        "new-app-uuid",
+        expect.arrayContaining([
+          expect.objectContaining({ key: "DATABASE_URL", value: "postgres://localhost" }),
+          expect.objectContaining({ key: "API_KEY", value: "secret123" }),
+        ]),
+      );
     });
 
     it("should skip environment variable update when no env content provided", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       mockClient.findApplicationByName.mockResolvedValue(null);
       mockClient.createDockerImageApplication.mockResolvedValue({
         uuid: "new-app-uuid",
-        name: "test-app",
       });
+      mockClient.deployApplication.mockResolvedValue("deploy-uuid");
+      mockClient.listApplications.mockResolvedValue([]);
 
       const manifest = createTestManifest();
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
@@ -499,12 +608,13 @@ describe("Reconciler", () => {
 
     it("should use serverId from options over manifest", async () => {
       const mockClient = createMockClient();
-      mockClient.listEnvironments.mockResolvedValue([{ name: "production" }]);
+      mockClient.findEnvironmentByName.mockResolvedValue({ name: "production", uuid: "env-uuid", id: 1 });
       mockClient.findApplicationByName.mockResolvedValue(null);
       mockClient.createDockerImageApplication.mockResolvedValue({
         uuid: "new-app-uuid",
-        name: "test-app",
       });
+      mockClient.deployApplication.mockResolvedValue("deploy-uuid");
+      mockClient.listApplications.mockResolvedValue([]);
 
       const manifest = createTestManifest();
       const reconciler = new Reconciler(mockClient as unknown as CoolifyClient, mockLogger, {
@@ -520,7 +630,7 @@ describe("Reconciler", () => {
 
       expect(mockClient.createDockerImageApplication).toHaveBeenCalledWith(
         expect.objectContaining({
-          server_id: "override-server-id",
+          server_uuid: "override-server-id",
         }),
       );
     });

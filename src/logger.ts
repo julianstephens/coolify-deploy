@@ -1,5 +1,5 @@
 import pino from "pino";
-import type { Env } from "./env.js";
+import type { Env } from "./env";
 
 const SERVICE_NAME = "coolify-deploy";
 

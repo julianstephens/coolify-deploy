@@ -1,6 +1,17 @@
+## v0.1.6
+
+- Extends types to match API documentation
+- Fixes issue where internal API client crashed on successful but empty response
+- Fixes issue where deployments were not triggered after creating or updating
+- Fixes issue where deployments accidentally target the wrong application if multiple apps share the same name across different environments (e.g., "api" in both Staging and Production)
+- Fixes issue where dry-run mode failed with "Target environment does not exist" error.
+- Improves dry-run mode to perform real read-only API calls (list applications, environments, etc.) instead of returning mock data. This allows the dry-run to accurately predict whether resources will be created or updated based on the actual server state. In addition, the tool now prints a summary table of changes (Created, Updated, Pruned, Failed) when running in dry-run mode, acting as a "plan" or "drift detection" feature.
+- Adds deployment status polling. The tool now waits for deployments to finish (or fail) before exiting, ensuring that CI pipelines accurately reflect the deployment outcome.
+- Adds resource pruning. Applications that exist in the target environment but are not defined in the manifest will now be deleted. This ensures the environment exactly matches the manifest.
+
 ## v0.1.5
 
-- Renames `serverUuid` to `serverId` in manifest for consistent resource identification.
+- Renames `serverUuid` to `serverId` in manifest for consistent resource identification
 - Adds server and destination introspection to the `init` command
 - Fixes issue where CLI crashes on null list return from the API
 - Fixes issue where reconciliation flow used improper app creation/update methods

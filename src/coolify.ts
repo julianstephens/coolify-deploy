@@ -1,113 +1,31 @@
-import type { Logger } from "./logger.js";
-import type { Resource } from "./manifest.js";
+import type { Logger } from "./logger";
+import type { Resource } from "./manifest";
+import type {
+  CoolifyApiError,
+  CoolifyApplication,
+  CoolifyCreateDockerImageAppOptions,
+  CoolifyCreateUpdateAppResponse,
+  CoolifyDeployResponse,
+  CoolifyEnvironment,
+  CoolifyEnvVar,
+  CoolifyEnvVarResponse,
+  CoolifyInitiateDeployResponse,
+  CoolifyServer,
+  CoolifyUpdateAppOptions,
+} from "./types";
 
-/**
- * Coolify Application response structure (subset of fields we use).
- */
-export interface CoolifyApplication {
-  uuid: string;
-  name: string;
-  description: string | null;
-  fqdn: string | null;
-  docker_registry_image_name: string | null;
-  docker_registry_image_tag: string | null;
-  ports_exposes: string | null;
-  health_check_enabled: boolean;
-  health_check_path: string | null;
-  health_check_port: number | null;
-  repository_project_id: number | null;
-  environment_id: number | null;
-  destination?: {
-    uuid: string;
-  };
-}
-
-/**
- * Coolify Environment response structure.
- */
-export interface CoolifyEnvironment {
-  name: string;
-  project_id: number;
-  is_production: boolean;
-}
-
-/**
- * Coolify environment variable structure.
- */
-export interface CoolifyEnvVar {
-  key: string;
-  value: string;
-  is_preview?: boolean;
-  is_literal?: boolean;
-  is_multiline?: boolean;
-  is_shown_once?: boolean;
-}
-
-/**
- * Coolify API error response structure.
- */
-export interface CoolifyApiError {
-  message: string;
-  errors?: Record<string, string[]>;
-}
-
-/**
- * Options for creating a Docker image application in Coolify.
- */
-export interface CreateDockerImageAppOptions {
-  project_uuid: string;
-  server_id: string;
-  environment_name: string;
-  docker_registry_image_name: string;
-  docker_registry_image_tag?: string;
-  name: string;
-  description?: string;
-  fqdn?: string;
-  ports_exposes?: string;
-  health_check_enabled?: boolean;
-  health_check_path?: string;
-  health_check_port?: string;
-  health_check_host?: string;
-  health_check_method?: string;
-  health_check_return_code?: number;
-  health_check_scheme?: string;
-  health_check_response_text?: string;
-  health_check_interval?: number;
-  health_check_timeout?: number;
-  health_check_retries?: number;
-  health_check_start_period?: number;
-  instant_deploy?: boolean;
-  destination_uuid?: string;
-}
-
-/**
- * Options for updating an application in Coolify.
- */
-export interface UpdateAppOptions {
-  docker_registry_image_name?: string;
-  docker_registry_image_tag?: string;
-  name?: string;
-  description?: string;
-  fqdn?: string;
-  ports_exposes?: string;
-  health_check_enabled?: boolean;
-  health_check_path?: string;
-  health_check_port?: string;
-  health_check_host?: string;
-  health_check_method?: string;
-  health_check_return_code?: number;
-  health_check_scheme?: string;
-  health_check_response_text?: string;
-  health_check_interval?: number;
-  health_check_timeout?: number;
-  health_check_retries?: number;
-  health_check_start_period?: number;
-}
-
-export interface CoolifyServer {
-  uuid: string;
-  name: string;
-}
+export type {
+  CoolifyApplication,
+  CoolifyCreateDockerImageAppOptions,
+  CoolifyCreateUpdateAppResponse,
+  CoolifyDeployResponse,
+  CoolifyEnvironment,
+  CoolifyEnvVar,
+  CoolifyEnvVarResponse,
+  CoolifyInitiateDeployResponse,
+  CoolifyServer,
+  CoolifyUpdateAppOptions,
+} from "./types";
 
 /**
  * Coolify API client for managing Docker image-based applications.
@@ -129,7 +47,7 @@ export class CoolifyClient {
   /**
    * Makes an authenticated API request to Coolify.
    */
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown): Promise<T | null> {
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.token}`,
@@ -147,13 +65,11 @@ export class CoolifyClient {
 
     // Handle empty responses (like 204 No Content)
     const contentType = response.headers.get("content-type");
-    let data: unknown = null;
-    if (contentType?.includes("application/json")) {
-      data = await response.json();
-    }
-
     if (!response.ok) {
-      const error = data as CoolifyApiError | null;
+      let error: CoolifyApiError | null = null;
+      if (contentType?.includes("application/json")) {
+        error = (await response.json()) as CoolifyApiError;
+      }
       const errorMessage = error?.message ?? `HTTP ${response.status}: ${response.statusText}`;
       this.logger.error(
         {
@@ -161,26 +77,35 @@ export class CoolifyClient {
           url,
           status: response.status,
           error: errorMessage,
-          details: error?.errors,
         },
         "API request failed",
       );
       throw new Error(errorMessage);
     }
 
-    return data as T;
+    if (contentType?.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+
+    return null;
+  }
+
+  /**
+   * Makes an authenticated API request to Coolify, throwing if the result is null.
+   */
+  private async requestRequired<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const result = await this.request<T>(method, path, body);
+    if (result === null) {
+      throw new Error(`API request to ${path} returned an unexpected null response.`);
+    }
+    return result;
   }
 
   /**
    * Lists all applications in Coolify.
    */
   async listApplications(): Promise<CoolifyApplication[]> {
-    if (this.dryRun) {
-      this.logger.debug("Listing applications in dry run mode");
-      return [];
-    }
-
-    const result = await this.request<CoolifyApplication[] | null>("GET", "/api/v1/applications");
+    const result = await this.request<CoolifyApplication[]>("GET", "/api/v1/applications");
     return result ?? [];
   }
 
@@ -188,11 +113,7 @@ export class CoolifyClient {
    * Lists all servers.
    */
   async listServers(): Promise<CoolifyServer[]> {
-    if (this.dryRun) {
-      this.logger.debug("Listing servers in dry run mode");
-      return [];
-    }
-    const result = await this.request<CoolifyServer[] | null>("GET", "/api/v1/servers");
+    const result = await this.request<CoolifyServer[]>("GET", "/api/v1/servers");
     return result ?? [];
   }
 
@@ -200,25 +121,14 @@ export class CoolifyClient {
    * Lists all environments for a given project.
    */
   async listEnvironments(projectId: string): Promise<CoolifyEnvironment[]> {
-    if (this.dryRun) {
-      this.logger.debug({ projectId }, "[DRY RUN] Would list environments for project");
-      return [];
-    }
-    const result = await this.request<{ data: CoolifyEnvironment[] }>(
-      "GET",
-      `/api/v1/projects/${projectId}/environments`,
-    );
-    return result.data;
+    const result = await this.request<CoolifyEnvironment[]>("GET", `/api/v1/projects/${projectId}/environments`);
+    return result ?? [];
   }
 
   /**
    * Finds an environment by name within a project.
    */
   async findEnvironmentByName(projectId: string, name: string): Promise<CoolifyEnvironment | null> {
-    if (this.dryRun) {
-      this.logger.debug({ name, projectId }, "[DRY RUN] Assuming environment exists for dry run");
-      return { name, project_id: 0, is_production: true };
-    }
     const environments = await this.listEnvironments(projectId);
     const found = environments.find((env) => env.name === name);
     if (found) {
@@ -228,55 +138,42 @@ export class CoolifyClient {
   }
 
   /**
-   * Finds an application by name.
+   * Finds an application by name within a specific environment.
    * Note: Searches across all applications returned by the API.
    */
-  async findApplicationByName(name: string): Promise<CoolifyApplication | null> {
-    if (this.dryRun) {
-      this.logger.debug({ name }, "[DRY RUN] Would find application by name");
-      return null;
-    }
+  async findApplicationByName(name: string, environmentId: number): Promise<CoolifyApplication | null> {
     const applications = await this.listApplications();
-    return applications?.find((app) => app.name === name) ?? null;
+    return applications.find((app) => app.name === name && app.environment_id === environmentId) ?? null;
   }
 
   /**
    * Creates a new Docker image-based application.
    */
-  async createDockerImageApplication(options: CreateDockerImageAppOptions): Promise<CoolifyApplication> {
+  async createDockerImageApplication(
+    options: CoolifyCreateDockerImageAppOptions,
+  ): Promise<CoolifyCreateUpdateAppResponse> {
     if (this.dryRun) {
       this.logger.info({ options }, "[DRY RUN] Would create Docker image application");
       return {
         uuid: "dry-run-uuid",
-        name: options.name,
-        description: options.description ?? null,
-        fqdn: options.fqdn ?? null,
-        docker_registry_image_name: options.docker_registry_image_name,
-        docker_registry_image_tag: options.docker_registry_image_tag ?? null,
-        ports_exposes: options.ports_exposes ?? null,
-        health_check_enabled: options.health_check_enabled ?? false,
-        health_check_path: options.health_check_path ?? null,
-        health_check_port: options.health_check_port ? Number(options.health_check_port) : null,
-        repository_project_id: null,
-        environment_id: null,
       };
     }
 
     this.logger.info({ name: options.name }, "Creating Docker image application");
-    return this.request<CoolifyApplication>("POST", "/api/v1/applications/dockerimage", options);
+    return this.requestRequired<CoolifyCreateUpdateAppResponse>("POST", "/api/v1/applications/dockerimage", options);
   }
 
   /**
    * Updates an existing application.
    */
-  async updateApplication(uuid: string, options: UpdateAppOptions): Promise<void> {
+  async updateApplication(uuid: string, options: CoolifyUpdateAppOptions): Promise<void> {
     if (this.dryRun) {
       this.logger.info({ uuid, options }, "[DRY RUN] Would update application");
       return;
     }
 
     this.logger.info({ uuid, name: options.name }, "Updating application");
-    await this.request<unknown>("PATCH", `/api/v1/applications/${uuid}`, options);
+    await this.request("PATCH", `/api/v1/applications/${uuid}`, options);
   }
 
   /**
@@ -289,21 +186,106 @@ export class CoolifyClient {
     }
 
     this.logger.info({ uuid, envVarCount: envVars.length }, "Updating environment variables");
-    await this.request<unknown>("PATCH", `/api/v1/applications/${uuid}/envs`, envVars);
+    await this.request("PATCH", `/api/v1/applications/${uuid}/envs/bulk`, { data: envVars });
+  }
+
+  /**
+   * Lists environment variables for an application.
+   */
+  async listEnvironmentVariables(uuid: string): Promise<CoolifyEnvVarResponse[]> {
+    const result = await this.request<CoolifyEnvVarResponse[]>("GET", `/api/v1/applications/${uuid}/envs`);
+    return result ?? [];
+  }
+
+  /**
+   * Deletes an environment variable from an application.
+   */
+  async deleteEnvironmentVariable(appUuid: string, envUuid: string): Promise<void> {
+    if (this.dryRun) {
+      this.logger.info({ appUuid, envUuid }, "[DRY RUN] Would delete environment variable");
+      return;
+    }
+
+    this.logger.info({ appUuid, envUuid }, "Deleting environment variable");
+    await this.request("DELETE", `/api/v1/applications/${appUuid}/envs/${envUuid}`);
+  }
+
+  /**
+   * Deletes an application.
+   */
+  async deleteApplication(uuid: string): Promise<void> {
+    if (this.dryRun) {
+      this.logger.info({ uuid }, "[DRY RUN] Would delete application");
+      return;
+    }
+
+    this.logger.info({ uuid }, "Deleting application");
+    await this.request("DELETE", `/api/v1/applications/${uuid}`);
   }
 
   /**
    * Triggers a deployment for an application.
+   * Returns the deployment UUID.
    */
-  async deployApplication(uuid: string): Promise<void> {
+  async deployApplication(uuid: string): Promise<string | null> {
     if (this.dryRun) {
       this.logger.info({ uuid }, "[DRY RUN] Would trigger deployment");
-      return;
+      return "dry-run-deployment-uuid";
     }
 
     this.logger.info({ uuid }, "Triggering deployment");
     // Coolify uses POST for API-triggered deploys (GET is for webhook-based deploys)
-    await this.request<unknown>("POST", `/api/v1/deploy`, { uuid });
+    const response = await this.request<CoolifyInitiateDeployResponse>("POST", `/api/v1/deploy`, {
+      uuid,
+      tag: "latest",
+    });
+    return response?.deployments?.[0]?.deployment_uuid ?? null;
+  }
+
+  /**
+   * Gets the status of a deployment.
+   */
+  async getDeployment(uuid: string): Promise<CoolifyDeployResponse | null> {
+    if (this.dryRun) {
+      this.logger.debug({ uuid }, "[DRY RUN] Would get deployment status");
+      return { status: "finished", deployment_uuid: uuid } as CoolifyDeployResponse;
+    }
+    return this.request<CoolifyDeployResponse>("GET", `/api/v1/deployments/${uuid}`);
+  }
+
+  /**
+   * Waits for a deployment to finish.
+   * Polls every 2 seconds. Times out after 5 minutes (default).
+   */
+  async waitForDeployment(uuid: string, timeoutMs = 300000, intervalMs = 2000): Promise<CoolifyDeployResponse> {
+    if (this.dryRun) {
+      this.logger.info({ uuid }, "[DRY RUN] Would wait for deployment to finish");
+      return { status: "finished", deployment_uuid: uuid } as CoolifyDeployResponse;
+    }
+
+    this.logger.info({ uuid }, "Waiting for deployment to finish...");
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      const deployment = await this.getDeployment(uuid);
+      if (!deployment) {
+        this.logger.warn({ uuid }, "Deployment not found, retrying...");
+      } else {
+        const status = deployment.status;
+        this.logger.debug({ uuid, status }, "Polling deployment status");
+
+        if (status === "finished") {
+          this.logger.info({ uuid }, "Deployment finished successfully");
+          return deployment;
+        }
+        if (status === "failed") {
+          this.logger.error({ uuid }, "Deployment failed");
+          throw new Error(`Deployment ${uuid} failed.`);
+        }
+        // other statuses: queued, in_progress, etc.
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    throw new Error(`Deployment ${uuid} timed out after ${timeoutMs}ms`);
   }
 
   /**
@@ -314,19 +296,21 @@ export class CoolifyClient {
     projectId: string,
     serverId: string,
     environmentName: string,
+    environmentUuid: string,
     destinationUuid: string,
     dockerTag: string,
-  ): CreateDockerImageAppOptions {
-    const options: CreateDockerImageAppOptions = {
+  ): CoolifyCreateDockerImageAppOptions {
+    const options: CoolifyCreateDockerImageAppOptions = {
       project_uuid: projectId,
-      server_id: serverId,
+      server_uuid: serverId,
       environment_name: environmentName,
+      environment_uuid: environmentUuid,
       destination_uuid: destinationUuid,
       docker_registry_image_name: resource.dockerImageName,
       docker_registry_image_tag: dockerTag,
       name: resource.name,
       description: resource.description,
-      fqdn: resource.domains || undefined,
+      domains: resource.domains || undefined,
       ports_exposes: resource.portsExposes,
       instant_deploy: false, // We'll deploy after setting env vars
     };
@@ -352,13 +336,13 @@ export class CoolifyClient {
   /**
    * Builds UpdateAppOptions from a manifest resource.
    */
-  static buildUpdateOptions(resource: Resource, dockerTag: string): UpdateAppOptions {
-    const options: UpdateAppOptions = {
+  static buildUpdateOptions(resource: Resource, dockerTag: string): CoolifyUpdateAppOptions {
+    const options: CoolifyUpdateAppOptions = {
       docker_registry_image_name: resource.dockerImageName,
       docker_registry_image_tag: dockerTag,
       name: resource.name,
       description: resource.description,
-      fqdn: resource.domains || undefined,
+      domains: resource.domains || undefined,
       ports_exposes: resource.portsExposes,
     };
 

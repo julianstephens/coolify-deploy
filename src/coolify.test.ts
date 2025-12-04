@@ -1,7 +1,7 @@
 import type pino from "pino";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CoolifyClient } from "./coolify.js";
-import type { Resource } from "./manifest.js";
+import { CoolifyClient } from "./coolify";
+import type { Resource } from "./manifest";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -73,10 +73,10 @@ describe("CoolifyClient", () => {
   });
 
   describe("findApplicationByName", () => {
-    it("should find an application by name", async () => {
+    it("should find an application by name and environment ID", async () => {
       const mockApps = [
-        { uuid: "app-1", name: "App 1" },
-        { uuid: "app-2", name: "App 2" },
+        { uuid: "app-1", name: "App 1", environment_id: 123 },
+        { uuid: "app-2", name: "App 2", environment_id: 456 },
       ];
 
       mockFetch.mockResolvedValueOnce({
@@ -87,8 +87,23 @@ describe("CoolifyClient", () => {
 
       const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
 
-      const app = await client.findApplicationByName("App 1");
-      expect(app).toEqual({ uuid: "app-1", name: "App 1" });
+      const app = await client.findApplicationByName("App 1", 123);
+      expect(app).toEqual({ uuid: "app-1", name: "App 1", environment_id: 123 });
+    });
+
+    it("should return null if app name matches but environment ID does not", async () => {
+      const mockApps = [{ uuid: "app-1", name: "App 1", environment_id: 456 }];
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: createMockHeaders({ "content-type": "application/json" }),
+        json: () => Promise.resolve(mockApps),
+      });
+
+      const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
+
+      const app = await client.findApplicationByName("App 1", 123);
+      expect(app).toBeNull();
     });
 
     it("should return null if app not found", async () => {
@@ -100,7 +115,7 @@ describe("CoolifyClient", () => {
 
       const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
 
-      const app = await client.findApplicationByName("Non-existent");
+      const app = await client.findApplicationByName("Non-existent", 123);
       expect(app).toBeNull();
     });
   });
@@ -115,7 +130,7 @@ describe("CoolifyClient", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         headers: createMockHeaders({ "content-type": "application/json" }),
-        json: () => Promise.resolve({ data: mockEnvs }),
+        json: () => Promise.resolve(mockEnvs),
       });
 
       const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
@@ -158,7 +173,7 @@ describe("CoolifyClient", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         headers: createMockHeaders({ "content-type": "application/json" }),
-        json: () => Promise.resolve({ data: mockEnvs }),
+        json: () => Promise.resolve(mockEnvs),
       });
 
       const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
@@ -173,7 +188,7 @@ describe("CoolifyClient", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         headers: createMockHeaders({ "content-type": "application/json" }),
-        json: () => Promise.resolve({ data: mockEnvs }),
+        json: () => Promise.resolve(mockEnvs),
       });
 
       const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
@@ -207,14 +222,14 @@ describe("CoolifyClient", () => {
 
       const result = await client.createDockerImageApplication({
         project_uuid: "project-uuid",
-        server_id: "server-uuid",
+        server_uuid: "server-uuid",
         environment_name: "production",
+        environment_uuid: "env-uuid",
         docker_registry_image_name: "ghcr.io/test/app",
         name: "Test App",
       });
 
       expect(result.uuid).toBe("dry-run-uuid");
-      expect(result.name).toBe("Test App");
       expect(mockFetch).not.toHaveBeenCalled();
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.anything(),
@@ -234,13 +249,108 @@ describe("CoolifyClient", () => {
     it("should not make API calls in dry run mode for deploy", async () => {
       const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger, true);
 
-      await client.deployApplication("app-uuid");
+      const uuid = await client.deployApplication("app-uuid");
 
+      expect(uuid).toBe("dry-run-deployment-uuid");
       expect(mockFetch).not.toHaveBeenCalled();
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({ uuid: "app-uuid" }),
         "[DRY RUN] Would trigger deployment",
       );
+    });
+  });
+
+  describe("deployApplication", () => {
+    it("should trigger deployment and return uuid", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: createMockHeaders({ "content-type": "application/json" }),
+        json: () => Promise.resolve({ deployments: [{ deployment_uuid: "deploy-123" }] }),
+      });
+
+      const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
+      const uuid = await client.deployApplication("app-uuid");
+
+      expect(uuid).toBe("deploy-123");
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://coolify.example.com/api/v1/deploy",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ uuid: "app-uuid", tag: "latest" }),
+        }),
+      );
+    });
+  });
+
+  describe("getDeployment", () => {
+    it("should get deployment status", async () => {
+      const mockDeployment = { status: "finished", deployment_uuid: "deploy-123" };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: createMockHeaders({ "content-type": "application/json" }),
+        json: () => Promise.resolve(mockDeployment),
+      });
+
+      const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
+      const deployment = await client.getDeployment("deploy-123");
+
+      expect(deployment).toEqual(mockDeployment);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://coolify.example.com/api/v1/deployments/deploy-123",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+  });
+
+  describe("waitForDeployment", () => {
+    it("should wait for deployment to finish", async () => {
+      const mockDeploymentFinished = { status: "finished", deployment_uuid: "deploy-123" };
+      const mockDeploymentInProgress = { status: "in_progress", deployment_uuid: "deploy-123" };
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: createMockHeaders({ "content-type": "application/json" }),
+          json: () => Promise.resolve(mockDeploymentInProgress),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: createMockHeaders({ "content-type": "application/json" }),
+          json: () => Promise.resolve(mockDeploymentFinished),
+        });
+
+      const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
+      // Short interval for test
+      const deployment = await client.waitForDeployment("deploy-123", 1000, 10);
+
+      expect(deployment).toEqual(mockDeploymentFinished);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should throw on failure", async () => {
+      const mockDeploymentFailed = { status: "failed", deployment_uuid: "deploy-123" };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: createMockHeaders({ "content-type": "application/json" }),
+        json: () => Promise.resolve(mockDeploymentFailed),
+      });
+
+      const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
+      await expect(client.waitForDeployment("deploy-123", 1000, 10)).rejects.toThrow("Deployment deploy-123 failed.");
+    });
+
+    it("should throw on timeout", async () => {
+      const mockDeploymentInProgress = { status: "in_progress", deployment_uuid: "deploy-123" };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: createMockHeaders({ "content-type": "application/json" }),
+        json: () => Promise.resolve(mockDeploymentInProgress),
+      });
+
+      const client = new CoolifyClient("https://coolify.example.com", "test-token", mockLogger);
+      await expect(client.waitForDeployment("deploy-123", 50, 10)).rejects.toThrow("timed out");
     });
   });
 
@@ -264,20 +374,22 @@ describe("CoolifyClient", () => {
         "project-uuid",
         "server-uuid",
         "production",
+        "env-uuid",
         "dest-uuid",
         "v1.0.0",
       );
 
       expect(options).toEqual({
         project_uuid: "project-uuid",
-        server_id: "server-uuid",
+        server_uuid: "server-uuid",
         environment_name: "production",
+        environment_uuid: "env-uuid",
         destination_uuid: "dest-uuid",
         docker_registry_image_name: "image-name",
         docker_registry_image_tag: "v1.0.0",
         name: "my-app",
         description: "A sample app",
-        fqdn: "test.com",
+        domains: "test.com",
         ports_exposes: "3000",
         instant_deploy: false,
         health_check_enabled: true,
@@ -309,6 +421,7 @@ describe("CoolifyClient", () => {
         "project-uuid",
         "server-uuid",
         "production",
+        "prod-uuid",
         "destination-uuid",
         "latest",
       );
@@ -340,7 +453,7 @@ describe("CoolifyClient", () => {
         docker_registry_image_tag: "v2.0.0",
         name: "my-app",
         description: "Updated Description",
-        fqdn: "new.example.com",
+        domains: "new.example.com",
         ports_exposes: "4000",
         health_check_enabled: true,
         health_check_path: "/healthz",
