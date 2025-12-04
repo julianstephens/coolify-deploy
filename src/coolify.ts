@@ -325,6 +325,10 @@ export class CoolifyClient {
       instant_deploy: false, // We'll deploy after setting env vars
     };
 
+    if (resource.portsExposes) {
+      options.ports_exposes = resource.portsExposes;
+    }
+
     if (resource.healthCheck) {
       options.health_check_enabled = true;
       options.health_check_path = resource.healthCheck.path;

@@ -1,3 +1,9 @@
+## v0.2.2
+
+- Aligned with Coolify API changes by removing the deprecated custom_healthcheck_found field from application update payloads. This resolves validation errors when updating
+- Fixed a bug where creating new applications would fail due to a missing ports_exposes field. The tool now correctly includes this field in the creation payload.Fixed a bug where creating new applications would fail due to a missing ports_exposes field. The tool now correctly includes this field in the creation payload.
+- Corrected the application creation logic to use the portsExposes property from the manifest, ensuring consistent port configuration between created and updated applications.
+
 ## v0.2.1
 
 - Forces `custom_healthcheck_found` to `true` when updating health check configuration. This ensures that Coolify respects the custom health check settings provided in the manifest.
