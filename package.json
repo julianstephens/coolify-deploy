@@ -19,7 +19,8 @@
     "clean": "rm -rf dist node_modules",
     "lint": "eslint src/",
     "test": "vitest run",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "release": "python3 ./scripts/release.py"
   },
   "keywords": [
     "coolify",
