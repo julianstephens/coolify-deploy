@@ -1,3 +1,8 @@
+## v0.2.5
+
+- Added User-Agent header to API requests to prevent rejection by API servers that filter automated requests
+- Added debug logging for token validation (logs token length and preview without exposing full token) to help diagnose authentication issues between environments
+
 ## v0.2.4
 
 - Fixed bug where API token was not being trimmed of whitespace, causing authentication errors. The tool now automatically trims the token before using it in API requests, preventing common issues with copy-pasting tokens that include extra spaces.

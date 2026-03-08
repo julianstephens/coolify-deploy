@@ -25,7 +25,7 @@ export type {
   CoolifyEnvVarResponse,
   CoolifyInitiateDeployResponse,
   CoolifyServer,
-  CoolifyUpdateAppOptions,
+  CoolifyUpdateAppOptions
 } from "./types";
 
 /**
@@ -43,6 +43,15 @@ export class CoolifyClient {
     this.token = token;
     this.logger = logger;
     this.dryRun = dryRun;
+
+    // Debug: Log token info to verify it's being read correctly (without exposing the full token)
+    const tokenPrefix = token.substring(0, 8);
+    const tokenSuffix = token.substring(token.length - 4);
+    this.logger.debug({
+      tokenLength: token.length,
+      hasToken: !!token,
+      tokenPreview: `${tokenPrefix}...${tokenSuffix}`
+    }, "CoolifyClient initialized");
   }
 
   /**
@@ -54,6 +63,7 @@ export class CoolifyClient {
       Authorization: `Bearer ${this.token}`,
       "Content-Type": "application/json",
       Accept: "application/json",
+      "User-Agent": "coolify-deploy-client",
     };
 
     this.logger.debug({ method, url, hasBody: !!body }, "Making API request");
