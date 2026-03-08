@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const envSchema = z.object({
-  COOLIFY_ENDPOINT_URL: z.string().min(1).describe("Coolify server base URL"),
-  COOLIFY_TOKEN: z.string().min(1).describe("Coolify API token"),
+  COOLIFY_ENDPOINT_URL: z.string().min(1).trim().describe("Coolify server base URL"),
+  COOLIFY_TOKEN: z.string().min(1).trim().describe("Coolify API token"),
   MANIFEST_PATH: z.string().min(1).optional(),
   DOCKER_IMAGE_TAG: z.string().min(1).optional(),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),

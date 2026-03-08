@@ -1,3 +1,7 @@
+## v0.2.4
+
+- Fixed bug where API token was not being trimmed of whitespace, causing authentication errors. The tool now automatically trims the token before using it in API requests, preventing common issues with copy-pasting tokens that include extra spaces.
+
 ## v0.2.3
 
 - Fixed bug where `custom_healthcheck_found` was still in use during app update.
