@@ -56,14 +56,14 @@ export function parseEnvFile(content: string): Record<string, string> {
       continue;
     }
 
-    // Match KEY=value pattern
-    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    // Match KEY=value pattern, allowing optional spaces around the equals sign
+    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
     if (!match) {
       continue;
     }
 
     const key = match[1];
-    let value = match[2];
+    let value = match[2].trim();
 
     // Handle quoted values and mismatched quotes
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
@@ -177,7 +177,9 @@ export class Reconciler {
     for (const resource of manifest.resources) {
       try {
         // Get env vars for this specific resource
-        const envFileContent = envSecrets[resource.envSecretName];
+        const envFileContent =
+          envSecrets[resource.envSecretName] ??
+          (this.options.manifest.envFileSecretName ? envSecrets[this.options.manifest.envFileSecretName] : undefined);
         let envVars: CoolifyEnvVar[] = [];
         if (envFileContent) {
           const parsed = parseEnvFile(envFileContent);

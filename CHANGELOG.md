@@ -1,3 +1,10 @@
+## v0.2.6
+
+- Fixed environment variable parsing for `.env` secrets that include whitespace around the `=` sign, e.g. `KEY = value`, which previously caused valid variables to be dropped before reaching Coolify.
+- Fixed `COOLIFY_ENV_*` secret generation and consumption to properly handle names with spaces, punctuation, or path-like values while preserving the expected naming convention.
+- Added support for the `--server-uuid` alias while keeping `--server-id` as the canonical CLI option, improving compatibility with docs and real-world usage.
+- Fixed manifest-level env fallback handling so a configured `envFileSecretName` is respected when resource-specific secrets are absent.
+
 ## v0.2.5
 
 - Added User-Agent header to API requests to prevent rejection by API servers that filter automated requests

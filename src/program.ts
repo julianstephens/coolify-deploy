@@ -11,6 +11,17 @@ import { Reconciler } from "./reconciler";
 /**
  * Creates the root program with global options.
  */
+export function toCoolifyEnvSecretName(name: string): string {
+  const normalized = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+
+  return `COOLIFY_ENV_${normalized || "WORKSPACE"}`;
+}
+
 export async function createProgram() {
   const pkg = await readFile(new URL("../package.json", import.meta.url), "utf-8").then(JSON.parse);
 
@@ -20,6 +31,7 @@ export async function createProgram() {
     .version(pkg.version)
     .option("-m, --manifest <path>", "Path to coolify.manifest.json file", process.env.MANIFEST_PATH)
     .option("-s, --server-id <uuid>", "Coolify server UUID (overrides manifest)")
+    .option("--server-uuid <uuid>", "Alias for --server-id")
     .option("-d, --dry-run", "Run without making changes", process.env.DRY_RUN === "true");
 
   return program;
@@ -90,11 +102,17 @@ export function createApplyCommand() {
           }
         }
 
+        if (manifest.envFileSecretName && process.env[manifest.envFileSecretName]) {
+          envSecrets[manifest.envFileSecretName] = process.env[manifest.envFileSecretName] as string;
+        }
+
+        const serverId = globalOptions.serverId ?? (globalOptions as { serverUuid?: string; }).serverUuid;
+
         const reconciler = new Reconciler(client, logger, {
           manifest,
           dockerTag,
           envSecrets,
-          serverId: globalOptions.serverId,
+          serverId,
         });
 
         const result = await reconciler.reconcile();
@@ -296,7 +314,7 @@ export function createInitCommand() {
         }
       };
 
-      const getRepoInfo = (): { owner: string; name: string } | null => {
+      const getRepoInfo = (): { owner: string; name: string; } | null => {
         try {
           const remoteUrl = execSync("git config --get remote.origin.url").toString().trim();
           const match = remoteUrl.match(/github\.com[/:]([\w.-]+)\/([\w.-]+)/);
@@ -310,10 +328,10 @@ export function createInitCommand() {
         }
       };
 
-      const getPnpmWorkspaces = (): Array<{ name: string; path: string }> => {
+      const getPnpmWorkspaces = (): Array<{ name: string; path: string; }> => {
         try {
           const output = execSync("pnpm list -r --json --depth -1").toString();
-          const workspaces = JSON.parse(output) as Array<{ name: string; path: string }>;
+          const workspaces = JSON.parse(output) as Array<{ name: string; path: string; }>;
           return workspaces.filter((w) => w.name && w.path);
         } catch {
           console.error("Failed to get pnpm workspaces. Is pnpm installed and are you in a monorepo?");
@@ -387,7 +405,7 @@ export function createInitCommand() {
         envSecretName: string;
         domains: string;
         portsExposes: string;
-        healthCheck: { path: string; port: string };
+        healthCheck: { path: string; port: string; };
       }> = [];
 
       for (const workspace of allWorkspaces) {
@@ -402,7 +420,7 @@ export function createInitCommand() {
             name: fullServiceName,
             description: `The ${fullServiceName} service.`,
             dockerImageName: `ghcr.io/${repoInfo.owner}/${fullServiceName}`,
-            envSecretName: `COOLIFY_ENV_${workspace.name.toUpperCase().replace(/-/g, "_")}`,
+            envSecretName: toCoolifyEnvSecretName(workspace.name),
           };
 
           // Try to get domains from existing application if available
@@ -427,7 +445,7 @@ export function createInitCommand() {
               envSecretName: string;
               domains: string;
               portsExposes: string;
-              healthCheck: { path: string; port: string };
+              healthCheck: { path: string; port: string; };
             },
           );
         }

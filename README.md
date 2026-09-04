@@ -109,7 +109,8 @@ apply [options]
 
 Options:
   -t, --tag <tag>        Docker image tag to deploy (e.g., "latest" or "v1.0.0")
-  -s, --server-uuid <uuid> Coolify server UUID (overrides manifest)
+  -s, --server-id <uuid> Coolify server UUID (overrides manifest)
+      --server-uuid <uuid> Alias for --server-id
 ```
 
 #### `apply` Examples

@@ -25,7 +25,7 @@ export type {
   CoolifyEnvVarResponse,
   CoolifyInitiateDeployResponse,
   CoolifyServer,
-  CoolifyUpdateAppOptions
+  CoolifyUpdateAppOptions,
 } from "./types";
 
 /**
@@ -47,11 +47,14 @@ export class CoolifyClient {
     // Debug: Log token info to verify it's being read correctly (without exposing the full token)
     const tokenPrefix = token.substring(0, 8);
     const tokenSuffix = token.substring(token.length - 4);
-    this.logger.debug({
-      tokenLength: token.length,
-      hasToken: !!token,
-      tokenPreview: `${tokenPrefix}...${tokenSuffix}`
-    }, "CoolifyClient initialized");
+    this.logger.debug(
+      {
+        tokenLength: token.length,
+        hasToken: !!token,
+        tokenPreview: `${tokenPrefix}...${tokenSuffix}`,
+      },
+      "CoolifyClient initialized",
+    );
   }
 
   /**

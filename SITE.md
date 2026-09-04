@@ -53,12 +53,12 @@ The reconciler is the core component of the `apply` command. It takes the desire
 
 1. Verify the target environment exists
 2. For each resource in the manifest:
+   - Parse the .env-formatted secret into CoolifyEnvVar[]
+   - Find the app by name in the environment
+   - Create if absent → createDockerImageApp() + deploy
+   - Update if present → updateApp() + re-deploy (only if tag or config changed)
+   - Reconcile env vars strictly (prune vars not in manifest)
 
-     - Parse the .env-formatted secret into CoolifyEnvVar[]
-     - Find the app by name in the environment
-     - Create if absent → createDockerImageApp() + deploy
-     - Update if present → updateApp() + re-deploy (only if tag or config changed)
-     - Reconcile env vars strictly (prune vars not in manifest)
 3. Prune apps present in Coolify but absent from the manifest
 4. Poll all triggered deployments to completion via waitForDeployment()
 
@@ -74,7 +74,7 @@ The reconciler is the core component of the `apply` command. It takes the desire
     {
       "name": "my-app",
       "dockerImageName": "ghcr.io/owner/repo/service",
-      "envSecretName": "MY_APP_ENV",   // key in COOLIFY_ENV_* vars
+      "envSecretName": "MY_APP_ENV", // key in COOLIFY_ENV_* vars
       "domains": "app.example.com",
       "portsExposes": "3000",
       "healthCheck": { "path": "/health", "port": "3000" }

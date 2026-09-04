@@ -76,6 +76,20 @@ KEY2=value2
     });
   });
 
+  it("should handle whitespace around equals signs", () => {
+    const content = `
+DATABASE_URL = postgres://localhost:5432/app
+API_KEY=  "secret-token"
+EMPTY =
+`;
+    const result = parseEnvFile(content);
+    expect(result).toEqual({
+      DATABASE_URL: "postgres://localhost:5432/app",
+      API_KEY: "secret-token",
+      EMPTY: "",
+    });
+  });
+
   it("should handle keys with underscores and numbers", () => {
     const content = `
 MY_KEY_123=value1

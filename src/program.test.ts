@@ -1,12 +1,30 @@
+import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createInitCommand } from "./program";
 
 vi.mock("node:fs/promises");
 vi.mock("node:child_process");
 
+const mockedReadFile = vi.mocked(readFile);
+
 describe("Program - Init Command", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedReadFile.mockResolvedValue(JSON.stringify({ version: "1.0.0" }));
+  });
+
+  it("should expose a server-uuid alias for the server-id option", async () => {
+    const { createProgram } = await import("./program");
+    const program = await createProgram();
+    expect(program.options.some((opt) => opt.long === "--server-id")).toBe(true);
+    expect(program.options.some((opt) => opt.long === "--server-uuid")).toBe(true);
+  });
+
+  it("should normalize workspace names into valid COOLIFY_ENV_* secret names", async () => {
+    const { toCoolifyEnvSecretName } = await import("./program");
+    expect(toCoolifyEnvSecretName("my-app")).toBe("COOLIFY_ENV_MY_APP");
+    expect(toCoolifyEnvSecretName("my app")).toBe("COOLIFY_ENV_MY_APP");
+    expect(toCoolifyEnvSecretName("my/app@v2")).toBe("COOLIFY_ENV_MY_APP_V2");
   });
 
   it("should parse options for project ID and environment", async () => {
